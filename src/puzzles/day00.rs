@@ -1,7 +1,5 @@
 // Day 00: Template
-
-use crate::shared::input::include_lines;
-use lazy_static::lazy_static;
+use crate::prelude::*;
 
 lazy_static! {
     static ref PUZZLE_INPUT: Vec<&'static str> = include_lines!("day00_input.txt");
