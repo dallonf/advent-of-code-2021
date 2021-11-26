@@ -1,10 +1,14 @@
 // Day 00: Template
 
 use crate::shared::input::include_lines;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref PUZZLE_INPUT: Vec<&'static str> = include_lines!("day00_input.txt");
+}
 
 pub fn part_one() -> String {
-    let input = include_lines!("day00_input.txt");
-    format!("Hello world! ({})", input.len())
+    format!("Hello world! ({})", PUZZLE_INPUT.len())
 }
 
 #[cfg(test)]
