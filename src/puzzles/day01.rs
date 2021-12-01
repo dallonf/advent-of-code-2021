@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::mem::MaybeUninit;
 
 // Day 1: Sonar Sweep
 use crate::prelude::*;
@@ -58,7 +59,6 @@ impl<'a, T, TIterator: Iterator<Item = T>, const N: usize> Iterator
     for IterWindowIterator<'a, T, TIterator, N>
 where
     T: Copy,
-    T: Default,
 {
     type Item = [T; N];
 
@@ -81,12 +81,15 @@ where
         let next = self.iterator.next();
         if let Some(next) = next {
             self.window_in_progress.push_back(next);
-            // could remove the dependency on Default by unsafely allocating an array
-            // with garbage data, knowing that we'll completely fill it before returning it
-            let mut result = [T::default(); N];
-            for i in 0..N {
-                result[i] = self.window_in_progress[i];
-            }
+            let result = unsafe {
+                // It's safe to allocate the array this way, because we immediately
+                // completely fill it
+                let mut result: [T; N] = MaybeUninit::uninit().assume_init();
+                for i in 0..N {
+                    result[i] = self.window_in_progress[i];
+                }
+                result
+            };
             self.window_in_progress.pop_front();
             Some(result)
         } else {
