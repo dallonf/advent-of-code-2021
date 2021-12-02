@@ -22,9 +22,21 @@ enum Direction {
 struct Command(Direction, i32);
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-struct Position {
+struct PositionMk1 {
     depth: i32,
     horizontal: i32,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+struct PositionMk2 {
+    depth: i32,
+    horizontal: i32,
+    aim: i32,
+}
+
+trait Position {
+    fn follow_command(&self, command: &Command) -> Self;
+    fn output(&self) -> i32;
 }
 
 impl FromStr for Command {
@@ -50,18 +62,18 @@ impl FromStr for Command {
     }
 }
 
-impl Position {
-    fn follow_command(&self, &Command(direction, units): &Command) -> Position {
+impl Position for PositionMk1 {
+    fn follow_command(&self, &Command(direction, units): &Command) -> PositionMk1 {
         match direction {
-            Direction::Forward => Position {
+            Direction::Forward => PositionMk1 {
                 horizontal: self.horizontal + units,
                 ..*self
             },
-            Direction::Down => Position {
+            Direction::Down => PositionMk1 {
                 depth: self.depth + units,
                 ..*self
             },
-            Direction::Up => Position {
+            Direction::Up => PositionMk1 {
                 depth: self.depth - units,
                 ..*self
             },
@@ -77,11 +89,50 @@ pub fn part_one() -> i32 {
     follow_commands(PUZZLE_INPUT.iter()).output()
 }
 
-fn follow_commands<'a>(commands: impl Iterator<Item = &'a Command>) -> Position {
+fn follow_commands<'a>(commands: impl Iterator<Item = &'a Command>) -> PositionMk1 {
     commands.fold(
-        Position {
+        PositionMk1 {
             depth: 0,
             horizontal: 0,
+        },
+        |prev, command| prev.follow_command(command),
+    )
+}
+
+pub fn part_two() -> i32 {
+    follow_commands_mk2(PUZZLE_INPUT.iter()).output()
+}
+
+impl Position for PositionMk2 {
+    fn follow_command(&self, &Command(direction, units): &Command) -> PositionMk2 {
+        match direction {
+            Direction::Forward => PositionMk2 {
+                horizontal: self.horizontal + units,
+                depth: self.depth + (self.aim * units),
+                ..*self
+            },
+            Direction::Down => PositionMk2 {
+                aim: self.aim + units,
+                ..*self
+            },
+            Direction::Up => PositionMk2 {
+                aim: self.aim - units,
+                ..*self
+            },
+        }
+    }
+
+    fn output(&self) -> i32 {
+        self.horizontal * self.depth
+    }
+}
+
+fn follow_commands_mk2<'a>(commands: impl Iterator<Item = &'a Command>) -> PositionMk2 {
+    commands.fold(
+        PositionMk2 {
+            depth: 0,
+            horizontal: 0,
+            aim: 0,
         },
         |prev, command| prev.follow_command(command),
     )
@@ -120,7 +171,7 @@ mod tests {
         let result = follow_commands(EXAMPLE_INPUT.iter());
         assert_eq!(
             result,
-            Position {
+            PositionMk1 {
                 horizontal: 15,
                 depth: 10
             }
@@ -132,5 +183,25 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, 2039912);
+    }
+
+    #[test]
+    fn part_two_example() {
+        let result = follow_commands_mk2(EXAMPLE_INPUT.iter());
+        assert_eq!(
+            result,
+            PositionMk2 {
+                horizontal: 15,
+                depth: 60,
+                aim: 10
+            },
+        );
+        assert_eq!(result.output(), 900);
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, 1942068080);
     }
 }
