@@ -1,8 +1,7 @@
-use std::num::ParseIntError;
-use std::str::FromStr;
-
 // Day 2: Dive!
 use crate::prelude::*;
+use std::num::ParseIntError;
+use std::str::FromStr;
 
 lazy_static! {
     static ref PUZZLE_INPUT: Box<[Command]> = include_str!("day02_input.txt")
@@ -35,7 +34,15 @@ struct PositionMk2 {
 }
 
 trait Position {
-    fn follow_command(&self, command: &Command) -> Self;
+    fn follow_command(&mut self, command: &Command);
+    fn with_followed_command(&self, command: &Command) -> Self
+    where
+        Self: Copy,
+    {
+        let mut new = *self;
+        new.follow_command(command);
+        new
+    }
     fn output(&self) -> i32;
 }
 
@@ -63,20 +70,17 @@ impl FromStr for Command {
 }
 
 impl Position for PositionMk1 {
-    fn follow_command(&self, &Command(direction, units): &Command) -> PositionMk1 {
+    fn follow_command(&mut self, &Command(direction, units): &Command) {
         match direction {
-            Direction::Forward => PositionMk1 {
-                horizontal: self.horizontal + units,
-                ..*self
-            },
-            Direction::Down => PositionMk1 {
-                depth: self.depth + units,
-                ..*self
-            },
-            Direction::Up => PositionMk1 {
-                depth: self.depth - units,
-                ..*self
-            },
+            Direction::Forward => {
+                self.horizontal += units;
+            }
+            Direction::Down => {
+                self.depth += units;
+            }
+            Direction::Up => {
+                self.depth -= units;
+            }
         }
     }
 
@@ -95,7 +99,7 @@ fn follow_commands<'a>(commands: impl Iterator<Item = &'a Command>) -> PositionM
             depth: 0,
             horizontal: 0,
         },
-        |prev, command| prev.follow_command(command),
+        |prev, command| prev.with_followed_command(command),
     )
 }
 
@@ -104,21 +108,18 @@ pub fn part_two() -> i32 {
 }
 
 impl Position for PositionMk2 {
-    fn follow_command(&self, &Command(direction, units): &Command) -> PositionMk2 {
+    fn follow_command(&mut self, &Command(direction, units): &Command) {
         match direction {
-            Direction::Forward => PositionMk2 {
-                horizontal: self.horizontal + units,
-                depth: self.depth + (self.aim * units),
-                ..*self
-            },
-            Direction::Down => PositionMk2 {
-                aim: self.aim + units,
-                ..*self
-            },
-            Direction::Up => PositionMk2 {
-                aim: self.aim - units,
-                ..*self
-            },
+            Direction::Forward => {
+                self.horizontal += units;
+                self.depth += self.aim * units;
+            }
+            Direction::Down => {
+                self.aim += units;
+            }
+            Direction::Up => {
+                self.aim -= units;
+            }
         }
     }
 
@@ -134,7 +135,7 @@ fn follow_commands_mk2<'a>(commands: impl Iterator<Item = &'a Command>) -> Posit
             horizontal: 0,
             aim: 0,
         },
-        |prev, command| prev.follow_command(command),
+        |prev, command| prev.with_followed_command(command),
     )
 }
 
