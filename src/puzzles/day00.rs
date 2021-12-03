@@ -1,4 +1,4 @@
-// Day 00: Template
+// Day 0: Template
 use crate::prelude::*;
 
 lazy_static! {
