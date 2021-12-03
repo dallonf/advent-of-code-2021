@@ -5,10 +5,11 @@ use std::str::FromStr;
 use crate::prelude::*;
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Box<[BinaryNumber]> = include_str!("day03_input.txt")
+    static ref PUZZLE_INPUT: BinaryNumbers = include_str!("day03_input.txt")
         .lines()
         .map(|line| line.parse().unwrap())
-        .collect();
+        .collect::<Result<BinaryNumbers, _>>()
+        .unwrap();
     static ref MAX_BITS: usize = u16::BITS.try_into().unwrap();
 }
 
@@ -80,6 +81,30 @@ impl Debug for BinaryNumber {
     }
 }
 
+struct BinaryNumbers {
+    num_bits: u8,
+    numbers: Box<[u16]>,
+}
+
+impl FromIterator<BinaryNumber> for Result<BinaryNumbers, String> {
+    fn from_iter<T: IntoIterator<Item = BinaryNumber>>(input: T) -> Self {
+        let mut iter = input.into_iter();
+        let first = iter.next().ok_or("No items in list".to_string())?;
+        let num_bits = first.num_bits;
+        let mut numbers = vec![first.number];
+        for it in iter {
+            if it.num_bits != num_bits {
+                return Err("Expected all input numbers to be the same bit length".to_string());
+            }
+            numbers.push(it.number);
+        }
+        Ok(BinaryNumbers {
+            num_bits,
+            numbers: numbers.into(),
+        })
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 struct PowerConsumption {
     gamma_rate: BinaryNumber,
@@ -87,16 +112,12 @@ struct PowerConsumption {
 }
 
 impl PowerConsumption {
-    fn compute(numbers: &[BinaryNumber]) -> Result<Self, String> {
-        let num_bits = numbers[0].num_bits;
-        if numbers.iter().any(|it| it.num_bits != num_bits) {
-            return Err("Expected all input numbers to be the same bit length".to_string());
-        }
-        let bare_numbers: Box<[u16]> = numbers.into_iter().map(|it| it.number).collect();
-
+    fn compute(input: &BinaryNumbers) -> Result<Self, String> {
+        let num_bits = input.num_bits;
+        let numbers: &[u16] = &input.numbers;
         let gamma: u16 = bit_iterator(num_bits)
             .filter_map(|bit| {
-                let on_count = bare_numbers.iter().filter(|&&num| num & bit == bit).count();
+                let on_count = numbers.iter().filter(|&&num| num & bit == bit).count();
                 if on_count > (numbers.len() / 2) {
                     Some(bit)
                 } else {
@@ -133,13 +154,14 @@ mod tests {
     use super::*;
 
     lazy_static! {
-        static ref EXAMPLE_INPUT: Box<[BinaryNumber]> = [
+        static ref EXAMPLE_INPUT: BinaryNumbers = [
             "00100", "11110", "10110", "10111", "10101", "01111", "00111", "11100", "10000",
             "11001", "00010", "01010",
         ]
         .into_iter()
         .map(|line| line.parse().unwrap())
-        .collect();
+        .collect::<Result<BinaryNumbers, _>>()
+        .unwrap();
     }
 
     #[test]
