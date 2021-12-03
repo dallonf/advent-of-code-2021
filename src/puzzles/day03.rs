@@ -17,6 +17,10 @@ pub fn part_one() -> Result<u32, String> {
     PowerConsumption::compute(&PUZZLE_INPUT).map(|it| it.output())
 }
 
+pub fn part_two() -> Result<u32, String> {
+    get_life_support_rating(&PUZZLE_INPUT)
+}
+
 fn bit_iterator(bits: u8) -> impl DoubleEndedIterator<Item = u16> {
     (0..bits).map(|i| (1 as u16) << i)
 }
@@ -149,6 +153,53 @@ impl PowerConsumption {
     }
 }
 
+fn get_life_support_rating(numbers: &BinaryNumbers) -> Result<u32, String> {
+    let oxygen = get_oxygen_generator_rating(numbers)?;
+    let co2 = get_co2_scrubber_rating(numbers)?;
+
+    Ok(oxygen.number as u32 * co2.number as u32)
+}
+
+fn get_oxygen_generator_rating(numbers: &BinaryNumbers) -> Result<BinaryNumber, String> {
+    find_with_bit_criteria(numbers, |num_on, num_off| num_on >= num_off)
+}
+
+fn get_co2_scrubber_rating(numbers: &BinaryNumbers) -> Result<BinaryNumber, String> {
+    find_with_bit_criteria(numbers, |num_on, num_off| num_off > num_on)
+}
+
+// The expected bit value
+type BitCriteria = fn(num_on: usize, num_off: usize) -> bool;
+
+fn find_with_bit_criteria(
+    numbers: &BinaryNumbers,
+    bit_criteria: BitCriteria,
+) -> Result<BinaryNumber, String> {
+    let num_bits = numbers.num_bits;
+    let mut remaining_items = numbers.numbers.clone();
+    let mut bit_iterator = bit_iterator(num_bits).rev(); // a biterator, if you will
+    while remaining_items.len() > 1 {
+        let bit = bit_iterator
+            .next()
+            .ok_or("Couldn't find a single matching value")?;
+
+        let count = remaining_items
+            .iter()
+            .filter(|&&num| num & bit == bit)
+            .count();
+
+        let expected_bit = bit_criteria(count, remaining_items.len() - count);
+        // filter out remaining items that don't match
+        remaining_items = remaining_items
+            .into_iter()
+            .copied()
+            .filter(|&num| (num & bit == bit) == expected_bit)
+            .collect();
+    }
+    let number = remaining_items[0];
+    Ok(BinaryNumber { num_bits, number })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,5 +250,41 @@ mod tests {
     fn part_one_answer() {
         let result = part_one().unwrap();
         assert_eq!(result, 4006064);
+    }
+
+    #[test]
+    fn oxygen_generator_rating() {
+        let result = get_oxygen_generator_rating(&EXAMPLE_INPUT).unwrap();
+        assert_eq!(
+            result,
+            BinaryNumber {
+                num_bits: 5,
+                number: 23
+            }
+        )
+    }
+
+    #[test]
+    fn co2_scrubber_rating() {
+        let result = get_co2_scrubber_rating(&EXAMPLE_INPUT).unwrap();
+        assert_eq!(
+            result,
+            BinaryNumber {
+                num_bits: 5,
+                number: 10
+            }
+        )
+    }
+
+    #[test]
+    fn life_support_rating() {
+        let result = get_life_support_rating(&EXAMPLE_INPUT).unwrap();
+        assert_eq!(result, 230)
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two().unwrap();
+        assert_eq!(result, 5941884);
     }
 }
