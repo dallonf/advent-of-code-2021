@@ -16,6 +16,10 @@ pub fn part_one() -> Result<u32, String> {
     PowerConsumption::compute(&PUZZLE_INPUT).map(|it| it.output())
 }
 
+fn bit_iterator(bits: u8) -> impl DoubleEndedIterator<Item = u16> {
+    (0..bits).map(|i| (1 as u16) << i)
+}
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 struct BinaryNumber {
     number: u16,
@@ -54,23 +58,10 @@ impl FromStr for BinaryNumber {
     }
 }
 
-impl From<BinaryNumber> for u16 {
-    fn from(other: BinaryNumber) -> Self {
-        other.number
-    }
-}
-
 impl Debug for BinaryNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let binary_format: String = (0..self.num_bits)
-            .map(|i| {
-                let bit = 1 << i;
-                if bit & self.number == bit {
-                    '1'
-                } else {
-                    '0'
-                }
-            })
+        let binary_format: String = bit_iterator(self.num_bits)
+            .map(|bit| if bit & self.number == bit { '1' } else { '0' })
             .rev()
             .collect();
 
@@ -94,8 +85,7 @@ impl PowerConsumption {
 
         let gamma: u16 = {
             let mut result = 0;
-            for bit_i in 0..num_bits {
-                let bit = 1 << bit_i;
+            for bit in bit_iterator(num_bits) {
                 let on_count = bare_numbers.iter().filter(|&&num| num & bit == bit).count();
                 if on_count > (numbers.len() / 2) {
                     result |= bit;
@@ -105,14 +95,9 @@ impl PowerConsumption {
         };
 
         let epsilon: u16 = {
-            let max: u16 = {
-                let mut result = 0;
-                for bit_i in 0..num_bits {
-                    let bit = 1 << bit_i;
-                    result |= bit;
-                }
-                result
-            };
+            let max: u16 = bit_iterator(num_bits)
+                .reduce(|prev, next| prev | next)
+                .unwrap();
             !gamma & max
         };
 
@@ -129,7 +114,7 @@ impl PowerConsumption {
     }
 
     fn output(&self) -> u32 {
-        u32::from(self.gamma_rate.number) * u32::from(self.epsilon_rate.number)
+        self.gamma_rate.number as u32 * self.epsilon_rate.number as u32
     }
 }
 
