@@ -20,6 +20,10 @@ fn bit_iterator(bits: u8) -> impl DoubleEndedIterator<Item = u16> {
     (0..bits).map(|i| (1 as u16) << i)
 }
 
+fn combine_bits(a: u16, b: u16) -> u16 {
+    a | b
+}
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 struct BinaryNumber {
     number: u16,
@@ -30,7 +34,6 @@ impl FromStr for BinaryNumber {
     type Err = String;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let mut result: u16 = 0;
         let num_bits = input.len();
         // ordinarily it's not a safe assumption that .len() (bytes)
         // is equal to the length of .chars() - but since we only allow
@@ -41,15 +44,23 @@ impl FromStr for BinaryNumber {
                 input
             ));
         }
-        for (i, c) in input.chars().rev().enumerate() {
-            let bit: u16 = match c {
-                '0' => 0,
-                '1' => 1,
-                _ => return Err(format!("Unexpected character: {}", c)),
-            };
-            let bit_in_position = bit << i;
-            result |= bit_in_position;
-        }
+        let result: u16 = input
+            .chars()
+            .rev()
+            .enumerate()
+            .map(|(i, c)| {
+                let bit: u16 = match c {
+                    '0' => 0,
+                    '1' => 1,
+                    _ => return Err(format!("Unexpected character: {}", c)),
+                };
+                Ok(bit << i)
+            })
+            .reduce(|a, b| match (a, b) {
+                (Ok(a), Ok(b)) => Ok(a | b),
+                (Err(err), _) | (_, Err(err)) => Err(err),
+            })
+            .unwrap()?;
 
         Ok(BinaryNumber {
             number: result,
@@ -83,21 +94,20 @@ impl PowerConsumption {
         }
         let bare_numbers: Box<[u16]> = numbers.into_iter().map(|it| it.number).collect();
 
-        let gamma: u16 = {
-            let mut result = 0;
-            for bit in bit_iterator(num_bits) {
+        let gamma: u16 = bit_iterator(num_bits)
+            .filter_map(|bit| {
                 let on_count = bare_numbers.iter().filter(|&&num| num & bit == bit).count();
                 if on_count > (numbers.len() / 2) {
-                    result |= bit;
+                    Some(bit)
+                } else {
+                    None
                 }
-            }
-            result
-        };
+            })
+            .reduce(combine_bits)
+            .unwrap();
 
         let epsilon: u16 = {
-            let max: u16 = bit_iterator(num_bits)
-                .reduce(|prev, next| prev | next)
-                .unwrap();
+            let max: u16 = bit_iterator(num_bits).reduce(combine_bits).unwrap();
             !gamma & max
         };
 
