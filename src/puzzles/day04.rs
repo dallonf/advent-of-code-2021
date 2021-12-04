@@ -1,17 +1,16 @@
 // Day 4: Giant Squid
 use crate::prelude::*;
 
-lazy_static! {
-    static ref PUZZLE_INPUT: Game =
-        Game::parse_from_iter(&mut include_lines!("day04_input.txt")).unwrap();
+fn parse_puzzle_input() -> Game {
+    Game::parse_from_iter(&mut include_lines!("day04_input.txt")).unwrap()
 }
 
 pub fn part_one() -> Option<u32> {
-    PUZZLE_INPUT.clone().get_winning_score()
+    parse_puzzle_input().get_winning_score()
 }
 
 pub fn part_two() -> Option<u32> {
-    PUZZLE_INPUT.clone().get_last_winning_score()
+    parse_puzzle_input().get_last_winning_score()
 }
 
 const ROW_SIZE: usize = 5;
@@ -192,7 +191,7 @@ impl Iterator for WinningScoreIterator {
 
             // assumption: there will only be one winner per round
             let winner = board_results
-                .iter()
+                .into_iter()
                 .find_map(|it| match it {
                     BoardResult::Winning(score) => Some(score),
                     _ => None,
@@ -209,7 +208,10 @@ impl Iterator for WinningScoreIterator {
 
 #[cfg(test)]
 mod tests {
+    extern crate test;
+
     use super::*;
+    use test::Bencher;
 
     lazy_static! {
         static ref EXAMPLE_INPUT: Game =
@@ -289,5 +291,20 @@ mod tests {
     fn part_two_answer() {
         let result = part_two();
         assert_eq!(result, Some(21070));
+    }
+
+    #[bench]
+    fn bench_parse(b: &mut Bencher) {
+        b.iter(|| Game::parse_from_iter(&mut include_lines!("day04_input.txt")).unwrap());
+    }
+
+    #[bench]
+    fn bench_part_one(b: &mut Bencher) {
+        b.iter(|| part_one());
+    }
+
+    #[bench]
+    fn bench_part_two(b: &mut Bencher) {
+        b.iter(|| part_two());
     }
 }
