@@ -5,8 +5,7 @@ use std::str::FromStr;
 use crate::prelude::*;
 
 lazy_static! {
-    static ref PUZZLE_INPUT: BinaryNumbers = include_str!("day03_input.txt")
-        .lines()
+    static ref PUZZLE_INPUT: BinaryNumbers = include_lines!("day03_input.txt")
         .map(|line| line.parse().unwrap())
         .collect::<Result<BinaryNumbers, _>>()
         .unwrap();

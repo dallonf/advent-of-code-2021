@@ -4,8 +4,7 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Box<[Command]> = include_str!("day02_input.txt")
-        .lines()
+    static ref PUZZLE_INPUT: Box<[Command]> = include_lines!("day02_input.txt")
         .map(|line| line.parse().unwrap())
         .collect();
 }

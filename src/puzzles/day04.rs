@@ -3,7 +3,7 @@ use crate::prelude::*;
 
 lazy_static! {
     static ref PUZZLE_INPUT: Game =
-        Game::parse_from_iter(&mut include_str!("day04_input.txt").lines()).unwrap();
+        Game::parse_from_iter(&mut include_lines!("day04_input.txt")).unwrap();
 }
 
 pub fn part_one() -> Option<u32> {
@@ -149,12 +149,12 @@ mod tests {
 
     lazy_static! {
         static ref EXAMPLE_INPUT: Game =
-            Game::parse_from_iter(&mut include_str!("day04_example.txt").lines()).unwrap();
+            Game::parse_from_iter(&mut include_lines!("day04_example.txt")).unwrap();
     }
 
     #[test]
     fn parse() {
-        let result = Game::parse_from_iter(&mut include_str!("day04_example.txt").lines()).unwrap();
+        let result = Game::parse_from_iter(&mut include_lines!("day04_example.txt")).unwrap();
         assert_eq!(result.sequence.len(), 27);
         assert_eq!(result.boards.len(), 3);
     }
