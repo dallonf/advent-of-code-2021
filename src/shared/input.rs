@@ -1,6 +1,6 @@
 macro_rules! include_lines {
     ($path:tt) => {
-        include_str!($path).lines().collect()
+        include_str!($path).lines()
     };
 }
 

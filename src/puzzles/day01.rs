@@ -2,8 +2,7 @@
 use crate::prelude::*;
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Box<[u32]> = include_str!("day01_input.txt")
-        .lines()
+    static ref PUZZLE_INPUT: Box<[u32]> = include_lines!("day01_input.txt")
         .map(|it| it.parse().unwrap())
         .collect();
 }
