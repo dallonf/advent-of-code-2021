@@ -10,6 +10,10 @@ pub fn part_one() -> Option<u32> {
     PUZZLE_INPUT.clone().get_winning_score()
 }
 
+pub fn part_two() -> Option<u32> {
+    PUZZLE_INPUT.clone().get_last_winning_score()
+}
+
 const ROW_SIZE: usize = 5;
 const COLUMN_SIZE: usize = 5;
 const GRID_SIZE: usize = ROW_SIZE * COLUMN_SIZE;
@@ -131,12 +135,72 @@ impl Game {
         })
     }
 
-    fn get_winning_score(&mut self) -> Option<u32> {
-        for &next_num in self.sequence.iter() {
-            for board in self.boards.iter_mut() {
-                if let Some(score) = board.mark_and_get_score_if_winning(next_num) {
-                    return Some(score);
-                }
+    fn get_winning_scores(self) -> WinningScoreIterator {
+        WinningScoreIterator {
+            sequence: self.sequence,
+            sequence_index: 0,
+            remaining_boards: self.boards,
+        }
+    }
+
+    fn get_winning_score(self) -> Option<u32> {
+        self.get_winning_scores().next()
+    }
+
+    fn get_last_winning_score(self) -> Option<u32> {
+        self.get_winning_scores().last()
+    }
+}
+
+struct WinningScoreIterator {
+    sequence: Box<[u8]>,
+    sequence_index: usize,
+    remaining_boards: Box<[Board]>,
+}
+
+impl Iterator for WinningScoreIterator {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.sequence_index < self.sequence.len() {
+            let next_num = self.sequence[self.sequence_index];
+            self.sequence_index += 1;
+
+            enum BoardResult {
+                Winning(u32),
+                Continue(Board),
+            }
+
+            let board_results: Box<[_]> = self
+                .remaining_boards
+                .into_iter()
+                .map(
+                    |&(mut board)| match board.mark_and_get_score_if_winning(next_num) {
+                        Some(score) => BoardResult::Winning(score),
+                        None => BoardResult::Continue(board),
+                    },
+                )
+                .collect();
+
+            self.remaining_boards = board_results
+                .into_iter()
+                .filter_map(|it| match it {
+                    &BoardResult::Continue(board) => Some(board),
+                    _ => None,
+                })
+                .collect();
+
+            // assumption: there will only be one winner per round
+            let winner = board_results
+                .iter()
+                .find_map(|it| match it {
+                    BoardResult::Winning(score) => Some(score),
+                    _ => None,
+                })
+                .copied();
+
+            if let Some(score) = winner {
+                return Some(score);
             }
         }
         None
@@ -203,7 +267,7 @@ mod tests {
 
     #[test]
     fn winning_score() {
-        let mut game = EXAMPLE_INPUT.clone();
+        let game = EXAMPLE_INPUT.clone();
         let result = game.get_winning_score();
         assert_eq!(result, Some(4512));
     }
@@ -212,5 +276,18 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, Some(5685));
+    }
+
+    #[test]
+    fn last_winner() {
+        let game = EXAMPLE_INPUT.clone();
+        let result = game.get_last_winning_score();
+        assert_eq!(result, Some(1924));
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, Some(21070));
     }
 }
