@@ -1,4 +1,3 @@
-use core::panic;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -16,6 +15,10 @@ lazy_static! {
 
 pub fn part_one() -> usize {
     compute_overlapping_for_horizontal_lines(PUZZLE_INPUT.iter().copied())
+}
+
+pub fn part_two() -> usize {
+    compute_overlapping(PUZZLE_INPUT.iter().copied())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -59,30 +62,52 @@ impl FromStr for Line {
 }
 
 impl Line {
-    fn points(&self) -> Box<dyn Iterator<Item = Point>> {
-        if self.0.x == self.1.x {
-            let x = self.0.x;
-            let range = if self.1.y >= self.0.y {
-                RangeInclusive::new(self.0.y, self.1.y)
-            } else {
-                RangeInclusive::new(self.1.y, self.0.y)
-            };
-            Box::new(range.map(move |y| Point { x, y }))
-        } else if self.0.y == self.1.y {
-            let y = self.0.y;
-            let range = if self.1.x >= self.0.x {
-                RangeInclusive::new(self.0.x, self.1.x)
-            } else {
-                RangeInclusive::new(self.1.x, self.0.x)
-            };
-            Box::new(range.map(move |x| Point { x, y }))
-        } else {
-            panic!("Haven't implemented iteration over diagonal lines yet");
+    fn points(&self) -> LineIterator {
+        LineIterator {
+            current: self.0,
+            x_delta: self.1.x as isize - self.0.x as isize,
+            y_delta: self.1.y as isize - self.0.y as isize,
+            emitted_last_point: false,
         }
     }
 
     fn is_horizontal(&self) -> bool {
         self.0.x == self.1.x || self.0.y == self.1.y
+    }
+}
+
+struct LineIterator {
+    current: Point,
+    x_delta: isize,
+    y_delta: isize,
+    emitted_last_point: bool,
+}
+
+impl Iterator for LineIterator {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.emitted_last_point {
+            return None;
+        }
+
+        // the result is the current item _before_ incrementing
+        let result = self.current;
+
+        let x_sign = self.x_delta.signum();
+        let y_sign = self.y_delta.signum();
+
+        if x_sign == 0 && self.y_delta == 0 {
+            // nothing to do, so mark that we're done
+            self.emitted_last_point = true;
+        } else {
+            self.current.x = (self.current.x as isize + x_sign).try_into().unwrap();
+            self.x_delta -= x_sign;
+            self.current.y = (self.current.y as isize + y_sign).try_into().unwrap();
+            self.y_delta -= y_sign;
+        }
+
+        Some(result)
     }
 }
 
@@ -139,6 +164,11 @@ fn compute_overlapping_for_horizontal_lines<T: IntoIterator<Item = Line>>(lines:
     grid.overlapping_points()
 }
 
+fn compute_overlapping<T: IntoIterator<Item = Line>>(lines: T) -> usize {
+    let grid: Grid = lines.into_iter().collect();
+    grid.overlapping_points()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,5 +201,17 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, 5774);
+    }
+
+    #[test]
+    fn part_two_example() {
+        let result = compute_overlapping(EXAMPLE_INPUT.iter().copied());
+        assert_eq!(result, 12);
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, 18423);
     }
 }
