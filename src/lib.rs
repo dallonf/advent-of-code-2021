@@ -1,5 +1,3 @@
-#![feature(test)]
-
 mod shared {
     pub mod input;
 }
