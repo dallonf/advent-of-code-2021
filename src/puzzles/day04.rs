@@ -208,10 +208,7 @@ impl Iterator for WinningScoreIterator {
 
 #[cfg(test)]
 mod tests {
-    extern crate test;
-
     use super::*;
-    use test::Bencher;
 
     lazy_static! {
         static ref EXAMPLE_INPUT: Game =
@@ -291,20 +288,5 @@ mod tests {
     fn part_two_answer() {
         let result = part_two();
         assert_eq!(result, Some(21070));
-    }
-
-    #[bench]
-    fn bench_parse(b: &mut Bencher) {
-        b.iter(|| Game::parse_from_iter(&mut include_lines!("day04_input.txt")).unwrap());
-    }
-
-    #[bench]
-    fn bench_part_one(b: &mut Bencher) {
-        b.iter(|| part_one());
-    }
-
-    #[bench]
-    fn bench_part_two(b: &mut Bencher) {
-        b.iter(|| part_two());
     }
 }
