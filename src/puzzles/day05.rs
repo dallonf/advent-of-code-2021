@@ -7,18 +7,18 @@ use std::str::FromStr;
 // Day 5: Hydrothermal Venture
 use crate::prelude::*;
 
-lazy_static! {
-    static ref PUZZLE_INPUT: Box<[Line]> = include_lines!("day05_input.txt")
+fn parse_puzzle_input() -> Box<[Line]> {
+    include_lines!("day05_input.txt")
         .map(|line| line.parse().unwrap())
-        .collect();
+        .collect()
 }
 
 pub fn part_one() -> usize {
-    compute_overlapping_for_horizontal_lines(PUZZLE_INPUT.iter().copied())
+    compute_overlapping_for_horizontal_lines(parse_puzzle_input().into_iter().copied())
 }
 
 pub fn part_two() -> usize {
-    compute_overlapping(PUZZLE_INPUT.iter().copied())
+    compute_overlapping(parse_puzzle_input().into_iter().copied())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
