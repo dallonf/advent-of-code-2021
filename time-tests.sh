@@ -1,1 +1,1 @@
-cargo test --release -- -Z unstable-options --report-time=colored
+cargo test --release -- -Z unstable-options --report-time=colored answer
