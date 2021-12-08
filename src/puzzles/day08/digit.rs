@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::{fmt::Debug, str::FromStr};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct DigitDisplay {
     bitwise: u8,
 }
@@ -61,6 +61,9 @@ pub const NINE: DigitDisplay = DigitDisplay {
     bitwise: 0b01101111,
 };
 
+// digits that have a unique number of segments from all other digits
+const SIMPLE_DIGITS: [DigitDisplay; 4] = [ONE, FOUR, SEVEN, EIGHT];
+
 impl DigitDisplay {
     pub fn states<'a>(&'a self) -> impl Iterator<Item = SegmentState> + 'a {
         ALL_SEGMENTS.clone().into_iter().map(|segment| {
@@ -76,6 +79,17 @@ impl DigitDisplay {
 
     pub fn count_segments_on(&self) -> usize {
         self.segments_on().count()
+    }
+
+    pub fn is_simple_digit(&self) -> bool {
+        let count = self.count_segments_on();
+        // this could be hardcoded
+        for test in &SIMPLE_DIGITS {
+            if count == test.count_segments_on() {
+                return true
+            }
+        }
+        false
     }
 }
 
