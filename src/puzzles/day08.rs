@@ -1,10 +1,10 @@
-use std::str::FromStr;
-
 // Day 8: Seven Segment Search
+mod digit;
+mod solver;
+
 use crate::prelude::*;
 use digit::DigitDisplay;
-
-mod digit;
+use std::str::FromStr;
 
 lazy_static! {
     static ref PUZZLE_INPUT: Box<[Entry]> = include_lines!("day08_input.txt")

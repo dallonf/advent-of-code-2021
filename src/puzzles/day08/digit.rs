@@ -20,7 +20,7 @@ pub enum Segment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SegmentState(Segment, bool);
 
-const ALL_SEGMENTS: [Segment; 7] = [
+pub const ALL_SEGMENTS: [Segment; 7] = [
     Segment::A,
     Segment::B,
     Segment::C,
@@ -61,11 +61,24 @@ pub const NINE: DigitDisplay = DigitDisplay {
     bitwise: 0b01101111,
 };
 
+pub const DIGITS: [DigitDisplay; 10] = [ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE];
+
 // digits that have a unique number of segments from all other digits
 const SIMPLE_DIGITS: [DigitDisplay; 4] = [ONE, FOUR, SEVEN, EIGHT];
 
 impl DigitDisplay {
-    pub fn states<'a>(&'a self) -> impl Iterator<Item = SegmentState> + 'a {
+    pub fn from_segments<T>(segments: T) -> Self
+    where
+        T: IntoIterator<Item = Segment>,
+    {
+        let bitwise = segments
+            .into_iter()
+            .map(|it| it.as_bit())
+            .fold(0, |a, b| a | b);
+        DigitDisplay { bitwise }
+    }
+
+    pub fn segment_states<'a>(&'a self) -> impl Iterator<Item = SegmentState> + 'a {
         ALL_SEGMENTS.clone().into_iter().map(|segment| {
             let bit = segment.as_bit();
             SegmentState(segment, self.bitwise & bit == bit)
@@ -73,7 +86,7 @@ impl DigitDisplay {
     }
 
     pub fn segments_on<'a>(&'a self) -> impl Iterator<Item = Segment> + 'a {
-        self.states()
+        self.segment_states()
             .filter_map(|it| if it.1 { Some(it.0) } else { None })
     }
 
@@ -86,7 +99,7 @@ impl DigitDisplay {
         // this could be hardcoded
         for test in &SIMPLE_DIGITS {
             if count == test.count_segments_on() {
-                return true
+                return true;
             }
         }
         false
@@ -97,15 +110,9 @@ impl FromStr for DigitDisplay {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bitwise = s
-            .chars()
-            .map::<Result<u8, String>, _>(|c| Ok(Segment::from_char(c)?.as_bit()))
-            .reduce(|a, b| match (a, b) {
-                (Ok(a), Ok(b)) => Ok(a | b),
-                (Err(err), _) | (_, Err(err)) => Err(err),
-            })
-            .ok_or("Attempted to parse empty string as digit display")??;
-        Ok(DigitDisplay { bitwise })
+        let segments: Result<Box<[Segment]>, String> =
+            s.chars().map(|c| Segment::from_char(c)).collect();
+        Ok(DigitDisplay::from_segments(&mut segments?.iter().copied()))
     }
 }
 
@@ -135,11 +142,11 @@ impl Segment {
         }
     }
 
-    fn as_index(&self) -> u8 {
-        *self as u8
+    pub fn as_index(&self) -> usize {
+        *self as usize
     }
 
-    fn as_bit(&self) -> u8 {
+    pub fn as_bit(&self) -> u8 {
         1 << self.as_index()
     }
 }
