@@ -1,6 +1,6 @@
 use super::digit::{self, DigitDisplay, Segment, SegmentState, ALL_SEGMENTS, DIGITS};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Solution {
     mapping: [Segment; ALL_SEGMENTS.len()],
 }
@@ -69,10 +69,32 @@ impl Solution {
             }
         }
 
-        // Next step: Deduction; use any solved segments to solve others
-        let mut prev = partial_solution;
+        // Finally, brute force possible solutions
+        let possible_solutions = partial_solution.brute_force();
+
+        // Find first possible solution that can turn all examples into recognizable digits
+        possible_solutions
+            .into_iter()
+            .find(|solution| {
+                scrambled_examples
+                    .iter()
+                    .all(|example| example.decode_digit(solution).is_ok())
+            })
+            .ok_or("Couldn't find a solution".to_string())
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct PartialSolution {
+    possibilities: [DigitDisplay; ALL_SEGMENTS.len()],
+}
+
+impl PartialSolution {
+    fn deduce_until_stable(&self) -> PartialSolution {
+        let mut current = *self;
+        let mut prev = current;
         loop {
-            let solved: Box<[_]> = partial_solution
+            let solved: Box<[_]> = current
                 .possibilities
                 .iter()
                 .enumerate()
@@ -87,7 +109,7 @@ impl Solution {
                 .collect();
 
             for (solution_segment_index, segment_possibilities) in
-                partial_solution.possibilities.iter_mut().enumerate()
+                current.possibilities.iter_mut().enumerate()
             {
                 // remove possible segments that are solved for other solution segments
                 *segment_possibilities =
@@ -103,14 +125,45 @@ impl Solution {
                     ))
             }
 
-            if partial_solution == prev {
+            if current == prev {
                 break;
             }
-            prev = partial_solution;
+            prev = current;
+        }
+        current
+    }
+
+    // profile: is returning a vec faster than a boxed iterator?
+    // also, why couldn't I use a boxed slice? (Box<[Solution]>)
+    fn brute_force(&self) -> Vec<Solution> {
+        let deduced = self.deduce_until_stable();
+        // TODO: check if any segment has no possibilities
+        if let Ok(solution) = deduced.into_solution() {
+            return vec![solution];
         }
 
-        // Collect possibilities into a single solution, if possible
-        let mapping_results: Box<[Result<Segment, _>]> = partial_solution
+        let first_unsolved = deduced
+            .possibilities
+            .iter()
+            .enumerate()
+            .find(|(_, possibilities_for_segment)| {
+                possibilities_for_segment.count_segments_on() > 1
+            })
+            .unwrap();
+
+        first_unsolved
+            .1
+            .segments_on()
+            .flat_map(|segment| {
+                let mut option = deduced;
+                option.possibilities[first_unsolved.0] = DigitDisplay::from_single_segment(segment);
+                option.brute_force()
+            })
+            .collect()
+    }
+
+    fn into_solution(&self) -> Result<Solution, String> {
+        let mapping_results: Box<[Result<Segment, _>]> = self
             .possibilities
             .into_iter()
             .enumerate()
@@ -137,7 +190,7 @@ impl Solution {
         if errors.len() > 0 {
             return Err(format!(
                 "Couldn't find a solution: {:?}",
-                partial_solution.possibilities
+                self.possibilities
             ));
         }
 
@@ -152,11 +205,6 @@ impl Solution {
         }
         Ok(Solution { mapping })
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct PartialSolution {
-    possibilities: [DigitDisplay; ALL_SEGMENTS.len()],
 }
 
 #[cfg(test)]
