@@ -1,5 +1,6 @@
 mod shared {
     pub mod input;
+    pub mod grid;
 }
 mod prelude;
 
