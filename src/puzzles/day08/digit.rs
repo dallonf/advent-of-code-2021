@@ -1,4 +1,3 @@
-use crate::prelude::*;
 use std::{fmt::Debug, str::FromStr};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -18,7 +17,7 @@ pub enum Segment {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SegmentState(Segment, bool);
+pub struct SegmentState(pub Segment, pub bool);
 
 pub const ALL_SEGMENTS: [Segment; 7] = [
     Segment::A,
@@ -61,6 +60,7 @@ pub const NINE: DigitDisplay = DigitDisplay {
     bitwise: 0b01101111,
 };
 
+pub const ALL_ON: DigitDisplay = EIGHT;
 pub const DIGITS: [DigitDisplay; 10] = [ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE];
 
 // digits that have a unique number of segments from all other digits
@@ -76,6 +76,12 @@ impl DigitDisplay {
             .map(|it| it.as_bit())
             .fold(0, |a, b| a | b);
         DigitDisplay { bitwise }
+    }
+
+    pub fn from_single_segment(segment: Segment) -> Self {
+        DigitDisplay {
+            bitwise: segment.as_bit(),
+        }
     }
 
     pub fn segment_states<'a>(&'a self) -> impl Iterator<Item = SegmentState> + 'a {
@@ -103,6 +109,18 @@ impl DigitDisplay {
             }
         }
         false
+    }
+
+    pub fn intersect(&self, other: &Self) -> Self {
+        DigitDisplay {
+            bitwise: self.bitwise & other.bitwise,
+        }
+    }
+
+    /// Every segment that was on will now be off and vice versa
+    pub fn inverted(&self) -> Self {
+        let bitwise = !self.bitwise & 0b01111111;
+        DigitDisplay { bitwise }
     }
 }
 
@@ -148,6 +166,23 @@ impl Segment {
 
     pub fn as_bit(&self) -> u8 {
         1 << self.as_index()
+    }
+}
+
+impl TryFrom<u8> for Segment {
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Segment::A),
+            1 => Ok(Segment::B),
+            2 => Ok(Segment::C),
+            3 => Ok(Segment::D),
+            4 => Ok(Segment::E),
+            5 => Ok(Segment::F),
+            6 => Ok(Segment::G),
+            other => Err(format!("Could not convert '{}' to digit segment", other)),
+        }
     }
 }
 
