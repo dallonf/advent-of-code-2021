@@ -4,6 +4,7 @@ mod solver;
 
 use crate::prelude::*;
 use digit::DigitDisplay;
+use solver::{Decode, Solution};
 use std::str::FromStr;
 
 lazy_static! {
@@ -14,6 +15,10 @@ lazy_static! {
 
 pub fn part_one() -> usize {
     count_simple_digits_in_output(PUZZLE_INPUT.iter())
+}
+
+pub fn part_two() -> Result<u32, String> {
+    decode_entries(PUZZLE_INPUT.iter())
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -59,6 +64,22 @@ impl FromStr for Entry {
     }
 }
 
+impl Entry {
+    fn decode(&self) -> Result<u32, String> {
+        let solution = Solution::solve(&self.patterns)?;
+        self.output
+            .iter()
+            .rev()
+            .enumerate()
+            .map(|(place, digit)| -> Result<u32, String> {
+                let place_mult = 10_u32.pow(place as u32);
+                let digit = digit.decode_digit(&solution)?;
+                Ok(digit as u32 * place_mult)
+            })
+            .try_fold(0, |prev, next| next.map(|next| prev + next))
+    }
+}
+
 fn count_simple_digits_in_output<'a, T>(example_input: T) -> usize
 where
     T: IntoIterator<Item = &'a Entry>,
@@ -68,6 +89,16 @@ where
         .flat_map(|entry| entry.output.iter())
         .filter(|digit| digit.is_simple_digit())
         .count()
+}
+
+fn decode_entries<'a, T>(example_input: T) -> Result<u32, String>
+where
+    T: IntoIterator<Item = &'a Entry>,
+{
+    example_input
+        .into_iter()
+        .map(|entry| entry.decode())
+        .try_fold(0, |a, b| b.map(|b| a + b))
 }
 
 #[cfg(test)]
@@ -99,5 +130,27 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, 342);
+    }
+
+    #[test]
+    fn test_decode_entry() {
+        let result = Entry::from_str(
+            "acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab | cdfeb fcadb cdfeb cdbaf",
+        )
+        .unwrap()
+        .decode();
+        assert_eq!(result, Ok(5353));
+    }
+
+    #[test]
+    fn test_decode_entries() {
+        let result = decode_entries(EXAMPLE_INPUT.iter());
+        assert_eq!(result, Ok(61229));
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, Ok(1068933));
     }
 }
