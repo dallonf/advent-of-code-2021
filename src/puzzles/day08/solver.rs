@@ -70,6 +70,44 @@ impl Solution {
         }
 
         // Next step: Deduction; use any solved segments to solve others
+        let mut prev = partial_solution;
+        loop {
+            let solved: Box<[_]> = partial_solution
+                .possibilities
+                .iter()
+                .enumerate()
+                .filter_map(|(i, possibilities)| {
+                    let segments: Box<[Segment]> = possibilities.segments_on().collect();
+                    if segments.len() == 1 {
+                        Some((i, segments[0]))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for (solution_segment_index, segment_possibilities) in
+                partial_solution.possibilities.iter_mut().enumerate()
+            {
+                // remove possible segments that are solved for other solution segments
+                *segment_possibilities =
+                    DigitDisplay::from_segments(segment_possibilities.segments_on().filter(
+                        |possible_segment| {
+                            !solved
+                                .iter()
+                                .filter(|(solved_segment_index, _)| {
+                                    *solved_segment_index != solution_segment_index
+                                })
+                                .any(|(_, solved_segment)| possible_segment == solved_segment)
+                        },
+                    ))
+            }
+
+            if partial_solution == prev {
+                break;
+            }
+            prev = partial_solution;
+        }
 
         // Collect possibilities into a single solution, if possible
         let mapping_results: Box<[Result<Segment, _>]> = partial_solution
@@ -116,6 +154,7 @@ impl Solution {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct PartialSolution {
     possibilities: [DigitDisplay; ALL_SEGMENTS.len()],
 }
