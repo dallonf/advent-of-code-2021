@@ -116,17 +116,36 @@ impl<'a> ConnectionMap<'a> {
 mod tests {
     use super::*;
 
-    lazy_static! {
-        static ref EXAMPLE_INPUT: ConnectionMap<'static> = ConnectionMap::from_lines([
+    #[test]
+    fn test_count_paths() {
+        let map = ConnectionMap::from_lines([
             "start-A", "start-b", "A-c", "A-b", "b-d", "A-end", "b-end",
         ])
         .unwrap();
+        let result = map.count_paths();
+        assert_eq!(result, 10);
     }
 
     #[test]
-    fn test_count_paths() {
-        let result = EXAMPLE_INPUT.count_paths();
-        assert_eq!(result, 10);
+    fn test_count_paths_larger() {
+        let map = ConnectionMap::from_lines([
+            "dc-end", "HN-start", "start-kj", "dc-start", "dc-HN", "LN-dc", "HN-end", "kj-sa",
+            "kj-HN", "kj-dc",
+        ])
+        .unwrap();
+        let result = map.count_paths();
+        assert_eq!(result, 19);
+    }
+
+    #[test]
+    fn test_count_paths_largest() {
+        let map = ConnectionMap::from_lines([
+            "fs-end", "he-DX", "fs-he", "start-DX", "pj-DX", "end-zg", "zg-sl", "zg-pj", "pj-he",
+            "RW-he", "fs-DX", "pj-RW", "zg-RW", "start-pj", "he-WI", "zg-he", "pj-fs", "start-RW",
+        ])
+        .unwrap();
+        let result = map.count_paths();
+        assert_eq!(result, 226);
     }
 
     #[test]
