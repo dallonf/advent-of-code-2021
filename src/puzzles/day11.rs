@@ -14,6 +14,10 @@ pub fn part_one() -> usize {
     PUZZLE_INPUT.clone().simulate(100)
 }
 
+pub fn part_two() -> usize {
+    PUZZLE_INPUT.clone().steps_until_sync()
+}
+
 #[derive(Clone, Debug)]
 struct OctopusGrid(Grid<u8>);
 
@@ -47,6 +51,18 @@ impl OctopusGrid {
     /// Returns the number of flashes
     fn simulate(&mut self, num_steps: usize) -> usize {
         (0..num_steps).map(|_| self.step()).sum()
+    }
+
+    fn steps_until_sync(&mut self) -> usize {
+        let mut steps = 0;
+        let octopus_count = self.0.width() * self.0.height();
+        loop {
+            steps += 1;
+            let flashes = self.step();
+            if flashes == octopus_count {
+                return steps;
+            }
+        }
     }
 }
 
@@ -101,5 +117,17 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, 1697);
+    }
+
+    #[test]
+    fn test_steps_until_sync() {
+        let result = EXAMPLE_INPUT.clone().steps_until_sync();
+        assert_eq!(result, 195);
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, 344);
     }
 }
