@@ -16,6 +16,10 @@ pub fn part_one() -> u32 {
         .sum()
 }
 
+pub fn part_two() -> usize {
+    PUZZLE_INPUT.get_largest_basins_score()
+}
+
 struct SmokeBasinGrid(Grid<u8>);
 
 impl SmokeBasinGrid {
@@ -36,6 +40,87 @@ impl SmokeBasinGrid {
         self.0
             .adjacent_points(point)
             .all(|other| self.0.get(other) > value)
+    }
+
+    fn get_basin_sizes(&self) -> impl Iterator<Item = usize> {
+        let mut basin_grid: Grid<Option<usize>> = Grid::new(self.0.width(), self.0.height());
+        let mut next_basin_id = 0;
+
+        for point in self.0.all_points() {
+            let value = *self.0.get(point);
+            if value == 9 {
+                continue;
+            }
+
+            // are we going to make a new basin, add on to an existing basin, or merge two basins together?
+            let neighboring_basins: Box<[usize]> = basin_grid
+                .adjacent_points(point)
+                .filter_map(|neighbor| *(basin_grid.get(neighbor)))
+                .sorted()
+                .collect();
+
+            if neighboring_basins.len() == 0 {
+                basin_grid.set(point, Some(next_basin_id));
+                next_basin_id += 1;
+            } else {
+                let only_neighboring_basin = {
+                    let first = neighboring_basins[0];
+                    if neighboring_basins.iter().all(|&it| it == first) {
+                        Some(first)
+                    } else {
+                        None
+                    }
+                };
+                if let Some(only_neighboring_basin) = only_neighboring_basin {
+                    basin_grid.set(point, Some(only_neighboring_basin));
+                } else {
+                    // this is where the fun begins
+                    let possible_basins: Box<[usize]> = neighboring_basins
+                        .iter()
+                        .group_by(|it| *it)
+                        .into_iter()
+                        .map(|(key, _)| *key)
+                        .collect();
+
+                    let populated_points: Box<[Point]> = basin_grid
+                        .all_points()
+                        .take_while(|&scan_point| scan_point != point)
+                        .collect();
+
+                    let largest_neighboring_basin = *possible_basins
+                        .iter()
+                        .max_by_key(|&&basin_id| {
+                            populated_points
+                                .iter()
+                                .filter(|&&it| *basin_grid.get(it) == Some(basin_id))
+                                .count()
+                        })
+                        .unwrap();
+
+                    // merge other basins into the largest
+                    for &other_point in populated_points.iter() {
+                        let value = *basin_grid.get(other_point);
+                        if let Some(value) = value {
+                            if possible_basins.contains(&value) {
+                                basin_grid.set(other_point, Some(largest_neighboring_basin));
+                            }
+                        }
+                    }
+
+                    basin_grid.set(point, Some(largest_neighboring_basin));
+                }
+            }
+        }
+
+        basin_grid
+            .all_points()
+            .filter_map(|point| *basin_grid.get(point))
+            .counts()
+            .into_values()
+    }
+
+    fn get_largest_basins_score(&self) -> usize {
+        self.get_basin_sizes().sorted().rev().take(3).product()
     }
 }
 
@@ -85,5 +170,24 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, 554);
+    }
+
+    #[test]
+    fn test_get_basin_sizes() {
+        let expected: Box<[usize]> = [3, 9, 14, 9].into_iter().sorted().collect();
+        let result: Box<[usize]> = EXAMPLE_INPUT.get_basin_sizes().sorted().collect();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn get_largest_basins_score() {
+        let result = EXAMPLE_INPUT.get_largest_basins_score();
+        assert_eq!(result, 1134);
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, 1017792);
     }
 }
