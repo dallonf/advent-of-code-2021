@@ -3,9 +3,10 @@ use crate::prelude::*;
 use crate::shared::grid::{Grid, Point};
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Grid<u8> =
+    static ref PUZZLE_INPUT: SmokeBasinGrid = SmokeBasinGrid(
         Grid::from_digit_lines(&include_lines!("day09_input.txt").collect::<Box<[&str]>>())
-            .unwrap();
+            .unwrap()
+    );
 }
 
 pub fn part_one() -> u32 {
@@ -15,13 +16,15 @@ pub fn part_one() -> u32 {
         .sum()
 }
 
-impl Grid<u8> {
+struct SmokeBasinGrid(Grid<u8>);
+
+impl SmokeBasinGrid {
     fn get_risk_level(&self, point: Point) -> u8 {
-        self.get(point) + 1
+        self.0.get(point) + 1
     }
 
     fn low_points(&self) -> impl Iterator<Item = Point> + '_ {
-        self.all_points().filter(|it| self.is_low_point(*it))
+        self.0.all_points().filter(|it| self.is_low_point(*it))
     }
 
     fn get_risk_levels_of_low_points(&self) -> impl Iterator<Item = u8> + '_ {
@@ -29,9 +32,10 @@ impl Grid<u8> {
     }
 
     fn is_low_point(&self, point: Point) -> bool {
-        let value = self.get(point);
-        self.adjacent_points(point)
-            .all(|other| self.get(other) > value)
+        let value = self.0.get(point);
+        self.0
+            .adjacent_points(point)
+            .all(|other| self.0.get(other) > value)
     }
 }
 
@@ -40,28 +44,16 @@ mod tests {
     use super::*;
 
     lazy_static! {
-        static ref EXAMPLE_INPUT: Grid<u8> = Grid::from_digit_lines(&[
-            "2199943210",
-            "3987894921",
-            "9856789892",
-            "8767896789",
-            "9899965678",
-        ])
-        .unwrap();
-    }
-
-    #[test]
-    fn test_get_from_grid() {
-        assert_eq!(*EXAMPLE_INPUT.get(Point::new(0, 0)), 2);
-        assert_eq!(*EXAMPLE_INPUT.get(Point::new(1, 0)), 1);
-        assert_eq!(*EXAMPLE_INPUT.get(Point::new(0, 1)), 3);
-    }
-
-    #[test]
-    fn test_get_adjacent_points() {
-        let result: Box<[Point]> = EXAMPLE_INPUT.adjacent_points(Point::new(0, 0)).collect();
-        let expected: Box<[Point]> = Box::new([Point::new(1, 0), Point::new(0, 1)]);
-        assert_eq!(result, expected);
+        static ref EXAMPLE_INPUT: SmokeBasinGrid = SmokeBasinGrid(
+            Grid::from_digit_lines(&[
+                "2199943210",
+                "3987894921",
+                "9856789892",
+                "8767896789",
+                "9899965678",
+            ])
+            .unwrap()
+        );
     }
 
     #[test]
