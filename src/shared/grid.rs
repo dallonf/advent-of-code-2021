@@ -82,6 +82,34 @@ impl<T> Grid<T> {
     pub fn all_points(&self) -> impl Iterator<Item = Point> + '_ {
         (0..self.height()).flat_map(|y| (0..self.width).map(move |x| Point::new(x, y)))
     }
+
+    // this is mostly for debugging
+    #[allow(dead_code)]
+    pub fn map_values<Other>(&self, map_fn: fn(val: &T) -> Other) -> Grid<Other>
+    where
+        Other: Default + Clone,
+    {
+        let mut new_grid = Grid::new(self.width(), self.height());
+        for point in self.all_points() {
+            let prev_val = self.get(point);
+            let new_val = map_fn(prev_val);
+            new_grid.set(point, new_val);
+        }
+        new_grid
+    }
+}
+
+impl<T> Grid<T>
+where
+    T: Default + Clone,
+{
+    pub fn new(width: usize, height: usize) -> Self {
+        let data = vec![T::default(); width * height];
+        Grid {
+            data: data.into_boxed_slice(),
+            width,
+        }
+    }
 }
 
 impl Grid<u8> {
