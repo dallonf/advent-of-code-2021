@@ -12,6 +12,10 @@ pub fn part_one() -> usize {
     PUZZLE_INPUT.count_paths()
 }
 
+pub fn part_two() -> usize {
+    PUZZLE_INPUT.count_paths_mk2()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Node<'a> {
     Start,
@@ -58,6 +62,9 @@ impl<'a> ConnectionMap<'a> {
     }
 
     fn insert_one_way_connection(&mut self, from: Node<'a>, to: Node<'a>) {
+        if from == Node::End || to == Node::Start {
+            return;
+        }
         match self.0.entry(from) {
             Entry::Occupied(mut entry) => {
                 let connections = entry.get_mut();
@@ -77,6 +84,19 @@ impl<'a> ConnectionMap<'a> {
     }
 
     fn count_paths(&self) -> usize {
+        self.count_paths_with_validation(|path, next| {
+            if let Node::SmallCave(id) = next {
+                !path.contains(&Node::SmallCave(id))
+            } else {
+                true
+            }
+        })
+    }
+
+    fn count_paths_with_validation(
+        &self,
+        validate_movement: fn(path: &[Node], next: Node) -> bool,
+    ) -> usize {
         let mut already_explored = HashSet::<Vec<Node<'a>>>::new();
         let mut explore_queue = VecDeque::<Vec<Node<'a>>>::new();
         explore_queue.push_back(vec![Node::Start]);
@@ -92,14 +112,7 @@ impl<'a> ConnectionMap<'a> {
             } else {
                 if let Some(connections) = self.0.get(&last_node) {
                     for &next in connections {
-                        let next_node_small_cave_already_visited = || {
-                            if let Node::SmallCave(id) = next {
-                                path.contains(&Node::SmallCave(id))
-                            } else {
-                                false
-                            }
-                        };
-                        if next != Node::Start && !next_node_small_cave_already_visited() {
+                        if validate_movement(&path, next) {
                             let mut new_path = path.clone();
                             new_path.push(next);
                             explore_queue.push_back(new_path);
@@ -109,6 +122,40 @@ impl<'a> ConnectionMap<'a> {
             }
         }
         complete_paths
+    }
+
+    fn count_paths_mk2(&self) -> usize {
+        self.count_paths_with_validation(|path, next| {
+            if let Node::SmallCave(new_id) = next {
+                let already_visited_times = path
+                    .iter()
+                    .filter(|&&node| node == Node::SmallCave(new_id))
+                    .take(2) // we actually don't care beyond the second instance
+                    .count();
+
+                match already_visited_times {
+                    0 => true,
+                    1 => {
+                        // only if no other cave has been visited twice
+                        // or, "all small caves only appear once"
+                        path.iter()
+                            .enumerate()
+                            .rev()
+                            .filter_map(|(i, node)| {
+                                if let Node::SmallCave(id) = node {
+                                    Some((i, *id))
+                                } else {
+                                    None
+                                }
+                            })
+                            .all(|(i, cave_id)| !path[..i].contains(&Node::SmallCave(cave_id)))
+                    }
+                    _ => false,
+                }
+            } else {
+                true
+            }
+        })
     }
 }
 
@@ -152,5 +199,43 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, 4912);
+    }
+
+    #[test]
+    fn test_count_paths_mk2() {
+        let map = ConnectionMap::from_lines([
+            "start-A", "start-b", "A-c", "A-b", "b-d", "A-end", "b-end",
+        ])
+        .unwrap();
+        let result = map.count_paths_mk2();
+        assert_eq!(result, 36);
+    }
+
+    #[test]
+    fn test_count_paths_mk2_larger() {
+        let map = ConnectionMap::from_lines([
+            "dc-end", "HN-start", "start-kj", "dc-start", "dc-HN", "LN-dc", "HN-end", "kj-sa",
+            "kj-HN", "kj-dc",
+        ])
+        .unwrap();
+        let result = map.count_paths_mk2();
+        assert_eq!(result, 103);
+    }
+
+    #[test]
+    fn test_count_paths_mk2_largest() {
+        let map = ConnectionMap::from_lines([
+            "fs-end", "he-DX", "fs-he", "start-DX", "pj-DX", "end-zg", "zg-sl", "zg-pj", "pj-he",
+            "RW-he", "fs-DX", "pj-RW", "zg-RW", "start-pj", "he-WI", "zg-he", "pj-fs", "start-RW",
+        ])
+        .unwrap();
+        let result = map.count_paths_mk2();
+        assert_eq!(result, 3509);
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, 150004);
     }
 }
