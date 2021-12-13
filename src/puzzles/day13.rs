@@ -26,22 +26,20 @@ struct OrigamiGrid(SparseGrid<()>);
 
 impl OrigamiGrid {
     fn fold(&self, instruction: FoldInstruction) -> OrigamiGrid {
-        let max_x = self.0.width() - 1;
-        let max_y = self.0.height() - 1;
         let mut new_grid = OrigamiGrid(SparseGrid::new());
         for (point, _) in self.0.all_extant_points() {
             let Point { x, y } = point;
             let new_point = match instruction {
                 FoldInstruction::X(fold_x) => {
                     if x > fold_x {
-                        Point::new(max_x - x, y)
+                        Point::new(2 * fold_x - x, y)
                     } else {
                         point
                     }
                 }
                 FoldInstruction::Y(fold_y) => {
                     if y > fold_y {
-                        Point::new(x, max_y - y)
+                        Point::new(x, 2 * fold_y - y)
                     } else {
                         point
                     }
