@@ -1,12 +1,12 @@
-use std::{
-    fmt::{Debug, Display},
-    ops::RangeInclusive,
-};
+use std::collections::{hash_map::Entry, HashMap};
+use std::fmt::{Debug, Display};
+use std::ops::RangeInclusive;
+use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Point {
-    x: usize,
-    y: usize,
+    pub x: usize,
+    pub y: usize,
 }
 
 impl Point {
@@ -15,12 +15,28 @@ impl Point {
     }
 }
 
-pub trait Grid<T> {
+impl FromStr for Point {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (x, y) = s
+            .split_once(",")
+            .ok_or("Expected point to be delimited by ,".to_string())?;
+
+        let x = x
+            .parse()
+            .map_err(|_| format!("Can't convert {} to a number", x))?;
+        let y = y
+            .parse()
+            .map_err(|_| format!("Can't convert {} to a number", y))?;
+
+        Ok(Point { x, y })
+    }
+}
+
+pub trait Grid {
     fn width(&self) -> usize;
     fn height(&self) -> usize;
-    fn get(&self, point: Point) -> &T;
-    fn set(&mut self, point: Point, new_val: T);
-    fn update(&mut self, point: Point, new_val_fn: fn(prev: &T) -> T);
 
     fn adjacent_points(&self, point: Point) -> Vec<Point> {
         let x = point.x as isize;
@@ -76,6 +92,18 @@ impl<T> ArrayGrid<T> {
         point.y * self.width + point.x
     }
 
+    pub fn get(&self, point: Point) -> &T {
+        &self.data[self.index_of(point)]
+    }
+
+    pub fn set(&mut self, point: Point, new_val: T) {
+        self.data[self.index_of(point)] = new_val;
+    }
+
+    pub fn update(&mut self, point: Point, new_val_fn: fn(prev: &T) -> T) {
+        self.data[self.index_of(point)] = new_val_fn(&self.data[self.index_of(point)]);
+    }
+
     // this is mostly for debugging
     #[allow(dead_code)]
     pub fn map_values<Other>(&self, map_fn: fn(val: &T) -> Other) -> ArrayGrid<Other>
@@ -92,25 +120,13 @@ impl<T> ArrayGrid<T> {
     }
 }
 
-impl<T> Grid<T> for ArrayGrid<T> {
+impl<T> Grid for ArrayGrid<T> {
     fn width(&self) -> usize {
         self.width
     }
 
     fn height(&self) -> usize {
         self.data.len() / self.width
-    }
-
-    fn get(&self, point: Point) -> &T {
-        &self.data[self.index_of(point)]
-    }
-
-    fn set(&mut self, point: Point, new_val: T) {
-        self.data[self.index_of(point)] = new_val;
-    }
-
-    fn update(&mut self, point: Point, new_val_fn: fn(prev: &T) -> T) {
-        self.data[self.index_of(point)] = new_val_fn(&self.data[self.index_of(point)]);
     }
 }
 
@@ -178,6 +194,54 @@ impl<T: Display> Debug for ArrayGrid<T> {
         let data_str = grid_lines.join("\n");
 
         write!(f, "{}", data_str)
+    }
+}
+
+#[derive(Clone)]
+pub struct SparseGrid<T> {
+    map: HashMap<Point, T>,
+}
+
+impl<T> SparseGrid<T> {
+    pub fn new() -> Self {
+        SparseGrid {
+            map: HashMap::new(),
+        }
+    }
+
+    pub fn get(&self, point: Point) -> Option<&T> {
+        self.map.get(&point)
+    }
+
+    pub fn set(&mut self, point: Point, new_val: T) {
+        self.map.insert(point, new_val);
+    }
+
+    pub fn update(&mut self, point: Point, new_val_fn: fn(prev: Option<&T>) -> T) {
+        match self.map.entry(point) {
+            Entry::Occupied(mut entry) => {
+                entry.insert(new_val_fn(Some(entry.get())));
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(new_val_fn(None));
+            }
+        }
+    }
+
+    pub fn all_extant_points(&self) -> impl Iterator<Item = (Point, &T)> {
+        self.map.iter().map(|(point, it)| (*point, it))
+    }
+}
+
+impl<T> Grid for SparseGrid<T> {
+    fn width(&self) -> usize {
+        // TODO: probably cache this
+        self.map.keys().map(|it| it.x).max().unwrap_or(0)
+    }
+
+    fn height(&self) -> usize {
+        // TODO: probably cache this
+        self.map.keys().map(|it| it.y).max().unwrap_or(0)
     }
 }
 

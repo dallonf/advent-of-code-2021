@@ -1,11 +1,9 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use crate::prelude::*;
+use crate::shared::grid::{Point, SparseGrid};
 use std::fmt::Debug;
-use std::ops::RangeInclusive;
 use std::str::FromStr;
 
 // Day 5: Hydrothermal Venture
-use crate::prelude::*;
 
 fn parse_puzzle_input() -> Box<[Line]> {
     include_lines!("day05_input.txt")
@@ -19,31 +17,6 @@ pub fn part_one() -> usize {
 
 pub fn part_two() -> usize {
     compute_overlapping(parse_puzzle_input().into_iter().copied())
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct Point {
-    x: usize,
-    y: usize,
-}
-
-impl FromStr for Point {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (x, y) = s
-            .split_once(",")
-            .ok_or("Expected point to be delimited by ,".to_string())?;
-
-        let x = x
-            .parse()
-            .map_err(|_| format!("Can't convert {} to a number", x))?;
-        let y = y
-            .parse()
-            .map_err(|_| format!("Can't convert {} to a number", y))?;
-
-        Ok(Point { x, y })
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,61 +84,64 @@ impl Iterator for LineIterator {
     }
 }
 
-struct Grid {
-    map: HashMap<Point, usize>,
-}
+struct VentGrid(SparseGrid<usize>);
 
-impl FromIterator<Line> for Grid {
+impl FromIterator<Line> for VentGrid {
     fn from_iter<T: IntoIterator<Item = Line>>(iter: T) -> Self {
-        let mut map = HashMap::new();
+        let mut grid = SparseGrid::new();
         iter.into_iter()
             .flat_map(|line| line.points())
-            .for_each(|point| match map.entry(point) {
-                Entry::Occupied(mut entry) => *entry.get_mut() += 1,
-                Entry::Vacant(entry) => {
-                    entry.insert(1);
-                }
+            .for_each(|point| {
+                grid.update(point, |existing| match existing {
+                    Some(existing) => *existing + 1,
+                    None => 1,
+                })
             });
-        Grid { map }
+        VentGrid(grid)
     }
 }
 
-impl Grid {
+impl VentGrid {
     fn overlapping_points(&self) -> usize {
-        self.map.values().filter(|&&count| count > 1).count()
+        self.0
+            .all_extant_points()
+            .filter(|(_, &count)| count > 1)
+            .count()
     }
 }
 
-impl Debug for Grid {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let keys: Box<[&Point]> = self.map.keys().collect();
-        let max_x = keys.iter().map(|it| it.x).max().unwrap();
-        let max_y = keys.iter().map(|it| it.y).max().unwrap();
+// Hasn't been updated for shared SparseGrid implementation
 
-        let diagram = RangeInclusive::new(0, max_y)
-            .map(|y| {
-                RangeInclusive::new(0, max_x)
-                    .map(|x| match self.map.get(&Point { x, y }) {
-                        Some(count) => count.to_string(),
-                        None => ".".to_string(),
-                    })
-                    .collect::<Box<[String]>>()
-                    .join("")
-            })
-            .collect::<Box<[String]>>()
-            .join("\n");
+// impl Debug for VentGrid {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         let keys: Box<[&Point]> = self.map.keys().collect();
+//         let max_x = keys.iter().map(|it| it.x).max().unwrap();
+//         let max_y = keys.iter().map(|it| it.y).max().unwrap();
 
-        write!(f, "{}", diagram)
-    }
-}
+//         let diagram = RangeInclusive::new(0, max_y)
+//             .map(|y| {
+//                 RangeInclusive::new(0, max_x)
+//                     .map(|x| match self.map.get(&Point { x, y }) {
+//                         Some(count) => count.to_string(),
+//                         None => ".".to_string(),
+//                     })
+//                     .collect::<Box<[String]>>()
+//                     .join("")
+//             })
+//             .collect::<Box<[String]>>()
+//             .join("\n");
+
+//         write!(f, "{}", diagram)
+//     }
+// }
 
 fn compute_overlapping_for_horizontal_lines<T: IntoIterator<Item = Line>>(lines: T) -> usize {
-    let grid: Grid = lines.into_iter().filter(Line::is_horizontal).collect();
+    let grid: VentGrid = lines.into_iter().filter(Line::is_horizontal).collect();
     grid.overlapping_points()
 }
 
 fn compute_overlapping<T: IntoIterator<Item = Line>>(lines: T) -> usize {
-    let grid: Grid = lines.into_iter().collect();
+    let grid: VentGrid = lines.into_iter().collect();
     grid.overlapping_points()
 }
 
