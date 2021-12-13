@@ -1,6 +1,8 @@
 // Day 13: Transparent Origami
 use crate::prelude::*;
 use crate::shared::grid::{Grid, Point, SparseGrid};
+use std::borrow::Cow;
+use std::fmt::Display;
 use std::str::FromStr;
 
 lazy_static! {
@@ -15,6 +17,11 @@ pub fn part_one() -> usize {
         .count_dots()
 }
 
+pub fn part_two() -> String {
+    PUZZLE_INPUT.follow_instructions().to_string()
+}
+
+#[derive(Clone)]
 struct OrigamiGrid(SparseGrid<()>);
 
 impl OrigamiGrid {
@@ -60,6 +67,24 @@ impl FromIterator<Point> for OrigamiGrid {
     }
 }
 
+impl Display for OrigamiGrid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let width = self.0.width();
+        let display = (0..self.0.height())
+            .map(|y| {
+                (0..width)
+                    .map(|x| match self.0.get(Point::new(x, y)) {
+                        Some(()) => "#",
+                        None => ".",
+                    })
+                    .join("")
+            })
+            .join("\n");
+
+        f.write_str(display.as_str())
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum FoldInstruction {
     X(usize),
@@ -102,6 +127,15 @@ impl Instructions {
             grid,
             fold_instructions,
         })
+    }
+
+    fn follow_instructions(&self) -> OrigamiGrid {
+        self.fold_instructions
+            .iter()
+            .fold(Cow::Borrowed(&self.grid), |grid, instruction| {
+                Cow::Owned(grid.fold(*instruction))
+            })
+            .into_owned()
     }
 }
 
@@ -155,5 +189,19 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, 710);
+    }
+
+    #[test]
+    fn test_display() {
+        let expected = ["#####", "#...#", "#...#", "#...#", "#####"].join("\n");
+        let result = EXAMPLE_INPUT.follow_instructions();
+        assert_eq!(result.to_string(), expected);
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let expected = include_str!("day13_answer.txt").trim_end();
+        let result = part_two();
+        assert_eq!(result.as_str(), expected);
     }
 }
