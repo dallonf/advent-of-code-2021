@@ -236,12 +236,22 @@ impl<T> SparseGrid<T> {
 impl<T> Grid for SparseGrid<T> {
     fn width(&self) -> usize {
         // TODO: probably cache this
-        self.map.keys().map(|it| it.x).max().unwrap_or(0)
+        self.map
+            .keys()
+            .map(|it| it.x)
+            .max()
+            .map(|it| it + 1)
+            .unwrap_or(0)
     }
 
     fn height(&self) -> usize {
         // TODO: probably cache this
-        self.map.keys().map(|it| it.y).max().unwrap_or(0)
+        self.map
+            .keys()
+            .map(|it| it.y)
+            .max()
+            .map(|it| it + 1)
+            .unwrap_or(0)
     }
 }
 
