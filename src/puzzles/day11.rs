@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 // Day 11: Dumbo Octopus
 use crate::prelude::*;
-use crate::shared::grid::{Grid, Point};
+use crate::shared::grid::{ArrayGrid, Grid, Point};
 
 lazy_static! {
     static ref PUZZLE_INPUT: OctopusGrid =
@@ -19,17 +19,17 @@ pub fn part_two() -> usize {
 }
 
 #[derive(Clone, Debug)]
-struct OctopusGrid(Grid<u8>);
+struct OctopusGrid(ArrayGrid<u8>);
 
 impl OctopusGrid {
     fn from_digit_lines(lines: &[&str]) -> Result<Self, String> {
-        Ok(OctopusGrid(Grid::from_digit_lines(lines)?))
+        Ok(OctopusGrid(ArrayGrid::from_digit_lines(lines)?))
     }
 
     /// Returns the number of flashes
     fn step(&mut self) -> usize {
         let mut flashed_this_step: Vec<Point> = Vec::new();
-        let mut increment_queue: VecDeque<Point> = self.0.all_points().collect();
+        let mut increment_queue: VecDeque<Point> = self.0.all_points().into();
 
         while let Some(point) = increment_queue.pop_front() {
             self.0.update(point, |x| *x + 1);

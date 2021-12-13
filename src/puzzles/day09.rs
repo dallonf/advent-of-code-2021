@@ -1,10 +1,10 @@
 // Day 9: Smoke Basin
 use crate::prelude::*;
-use crate::shared::grid::{Grid, Point};
+use crate::shared::grid::{ArrayGrid, Grid, Point};
 
 lazy_static! {
     static ref PUZZLE_INPUT: SmokeBasinGrid = SmokeBasinGrid(
-        Grid::from_digit_lines(&include_lines!("day09_input.txt").collect::<Box<[&str]>>())
+        ArrayGrid::from_digit_lines(&include_lines!("day09_input.txt").collect::<Box<[&str]>>())
             .unwrap()
     );
 }
@@ -20,7 +20,7 @@ pub fn part_two() -> usize {
     PUZZLE_INPUT.get_largest_basins_score()
 }
 
-struct SmokeBasinGrid(Grid<u8>);
+struct SmokeBasinGrid(ArrayGrid<u8>);
 
 impl SmokeBasinGrid {
     fn get_risk_level(&self, point: Point) -> u8 {
@@ -28,7 +28,10 @@ impl SmokeBasinGrid {
     }
 
     fn low_points(&self) -> impl Iterator<Item = Point> + '_ {
-        self.0.all_points().filter(|it| self.is_low_point(*it))
+        self.0
+            .all_points()
+            .into_iter()
+            .filter(|it| self.is_low_point(*it))
     }
 
     fn get_risk_levels_of_low_points(&self) -> impl Iterator<Item = u8> + '_ {
@@ -39,11 +42,13 @@ impl SmokeBasinGrid {
         let value = self.0.get(point);
         self.0
             .adjacent_points(point)
+            .into_iter()
             .all(|other| self.0.get(other) > value)
     }
 
     fn get_basin_sizes(&self) -> impl Iterator<Item = usize> {
-        let mut basin_grid: Grid<Option<usize>> = Grid::new(self.0.width(), self.0.height());
+        let mut basin_grid: ArrayGrid<Option<usize>> =
+            ArrayGrid::new(self.0.width(), self.0.height());
         let mut next_basin_id = 0;
 
         for point in self.0.all_points() {
@@ -55,6 +60,7 @@ impl SmokeBasinGrid {
             // are we going to make a new basin, add on to an existing basin, or merge two basins together?
             let neighboring_basins: Box<[usize]> = basin_grid
                 .adjacent_points(point)
+                .into_iter()
                 .filter_map(|neighbor| *(basin_grid.get(neighbor)))
                 .sorted()
                 .collect();
@@ -84,6 +90,7 @@ impl SmokeBasinGrid {
 
                     let populated_points: Box<[Point]> = basin_grid
                         .all_points()
+                        .into_iter()
                         .take_while(|&scan_point| scan_point != point)
                         .collect();
 
@@ -114,6 +121,7 @@ impl SmokeBasinGrid {
 
         basin_grid
             .all_points()
+            .into_iter()
             .filter_map(|point| *basin_grid.get(point))
             .counts()
             .into_values()
@@ -130,7 +138,7 @@ mod tests {
 
     lazy_static! {
         static ref EXAMPLE_INPUT: SmokeBasinGrid = SmokeBasinGrid(
-            Grid::from_digit_lines(&[
+            ArrayGrid::from_digit_lines(&[
                 "2199943210",
                 "3987894921",
                 "9856789892",
