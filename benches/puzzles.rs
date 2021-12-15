@@ -1,6 +1,8 @@
+mod perf;
+
 use std::time::Duration;
 
-use advent_of_code_2021::puzzles::{day04, day05, day07};
+use advent_of_code_2021::puzzles::{day04, day05, day07, day15};
 use criterion::{criterion_group, criterion_main, Criterion};
 
 fn day04(c: &mut Criterion) {
@@ -22,5 +24,19 @@ fn day07(c: &mut Criterion) {
         .bench_function("Part Two", |b| b.iter(|| day07::part_two()));
 }
 
-criterion_group!(all_benches, day04, day05, day07);
+fn day15(c: &mut Criterion) {
+    c.benchmark_group("Day 15")
+        .sample_size(10)
+        .bench_function("Part One", |b| b.iter(|| day15::part_one()));
+}
+
+fn profiled_config() -> Criterion {
+    Criterion::default().with_profiler(perf::FlamegraphProfiler::new(100))
+}
+
+criterion_group! {
+    name = all_benches;
+    config = profiled_config();
+    targets = day04, day05, day07, day15
+}
 criterion_main!(all_benches);
