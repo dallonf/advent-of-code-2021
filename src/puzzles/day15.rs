@@ -1,3 +1,5 @@
+use std::collections::{hash_map::Entry, HashMap};
+
 // Day 15: Chiton
 use crate::{
     prelude::*,
@@ -14,88 +16,68 @@ pub fn part_one() -> u32 {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct VisitedNodeInfo {
+struct NodeInfo {
     prev: Point,
     distance: u32,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum NodeState {
-    Start,
-    Unvisited,
-    PendingVisit(VisitedNodeInfo),
-    Visited(VisitedNodeInfo),
-}
-
-impl Default for NodeState {
-    fn default() -> Self {
-        NodeState::Unvisited
-    }
-}
-
 fn find_lowest_risk_path(map: &ArrayGrid<u8>) -> u32 {
     let destination = Point::new(map.width() - 1, map.height() - 1);
-    let mut node_map: ArrayGrid<NodeState> = ArrayGrid::new(map.width(), map.height());
+    let mut pending_visit: HashMap<Point, NodeInfo> = HashMap::new();
+    let mut visited: HashMap<Point, NodeInfo> = HashMap::new();
     let mut current = Point::new(0, 0);
-    node_map.set(current, NodeState::Start);
+    pending_visit.insert(
+        current,
+        NodeInfo {
+            distance: 0,
+            prev: current,
+        },
+    );
 
     while current != destination {
-        let current_distance = match node_map.get(current) {
-            NodeState::Start => 0,
-            NodeState::PendingVisit(VisitedNodeInfo { distance, .. }) => *distance,
-            _ => panic!(),
-        };
-        for neighbor in map.adjacent_points(current) {
+        let &NodeInfo {
+            distance: current_distance,
+            ..
+        } = pending_visit.get(&current).unwrap();
+
+        for neighbor in map
+            .adjacent_points(current)
+            .into_iter()
+            .filter(|point| !visited.contains_key(&point))
+        {
             let cost = *map.get(neighbor);
             let path_distance = current_distance + cost as u32;
-            let new_state = match node_map.get(neighbor) {
-                NodeState::Start | NodeState::Visited(_) => None,
-                NodeState::Unvisited => Some(NodeState::PendingVisit(VisitedNodeInfo {
-                    prev: current,
-                    distance: path_distance,
-                })),
-                NodeState::PendingVisit(VisitedNodeInfo {
-                    distance: existing_distance,
-                    ..
-                }) => {
-                    if *existing_distance > path_distance {
-                        Some(NodeState::PendingVisit(VisitedNodeInfo {
+            match pending_visit.entry(neighbor) {
+                Entry::Occupied(mut entry) => {
+                    let existing_distance = entry.get().distance;
+                    if existing_distance > path_distance {
+                        entry.insert(NodeInfo {
                             prev: current,
-                            distance: path_distance,
-                        }))
-                    } else {
-                        None
+                            distance: existing_distance,
+                        });
                     }
                 }
-            };
-            if let Some(new_state) = new_state {
-                node_map.set(neighbor, new_state);
+                Entry::Vacant(entry) => {
+                    entry.insert(NodeInfo {
+                        prev: current,
+                        distance: path_distance,
+                    });
+                }
             }
         }
 
         // mark as visited
-        let new_state = if let NodeState::PendingVisit(node_info) = node_map.get(current) {
-            Some(NodeState::Visited(*node_info))
-        } else {
-            None
-        };
-        if let Some(new_state) = new_state {
-            node_map.set(current, new_state);
-        }
+        let info = pending_visit.remove(&current).unwrap();
+        visited.insert(current, info);
 
-        current = node_map
-            .all_points()
-            .into_iter()
-            .filter_map(|node| match node_map.get(node) {
-                NodeState::PendingVisit(node_info) => Some((node, node_info)),
-                _ => None,
-            })
+        current = pending_visit
+            .iter()
             .min_by_key(|(_, info)| info.distance)
-            .map(|(point, _)| point)
+            .map(|(point, _)| *point)
             .unwrap();
     }
 
-    if let NodeState::PendingVisit(VisitedNodeInfo { distance, .. }) = node_map.get(destination) {
+    if let Some(NodeInfo { distance, .. }) = pending_visit.get(&current) {
         *distance
     } else {
         panic!()
