@@ -29,8 +29,8 @@ impl SmokeBasinGrid {
 
     fn low_points(&self) -> impl Iterator<Item = Point> + '_ {
         self.0
+            .layout()
             .all_points()
-            .into_iter()
             .filter(|it| self.is_low_point(*it))
     }
 
@@ -40,27 +40,25 @@ impl SmokeBasinGrid {
 
     fn is_low_point(&self, point: Point) -> bool {
         let value = self.0.get(point);
-        self.0
-            .adjacent_points(point)
-            .into_iter()
+        point
+            .adjacent_points(self.0.layout())
             .all(|other| self.0.get(other) > value)
     }
 
     fn get_basin_sizes(&self) -> impl Iterator<Item = usize> {
         let mut basin_grid: ArrayGrid<Option<usize>> =
-            ArrayGrid::new(self.0.width(), self.0.height());
+            ArrayGrid::from_layout(self.0.layout().clone());
         let mut next_basin_id = 0;
 
-        for point in self.0.all_points() {
+        for point in self.0.layout().all_points() {
             let value = *self.0.get(point);
             if value == 9 {
                 continue;
             }
 
             // are we going to make a new basin, add on to an existing basin, or merge two basins together?
-            let neighboring_basins: Box<[usize]> = basin_grid
-                .adjacent_points(point)
-                .into_iter()
+            let neighboring_basins: Box<[usize]> = point
+                .adjacent_points(basin_grid.layout())
                 .filter_map(|neighbor| *(basin_grid.get(neighbor)))
                 .sorted()
                 .collect();
@@ -89,8 +87,8 @@ impl SmokeBasinGrid {
                         .collect();
 
                     let populated_points: Box<[Point]> = basin_grid
+                        .layout()
                         .all_points()
-                        .into_iter()
                         .take_while(|&scan_point| scan_point != point)
                         .collect();
 
@@ -120,8 +118,8 @@ impl SmokeBasinGrid {
         }
 
         basin_grid
+            .layout()
             .all_points()
-            .into_iter()
             .filter_map(|point| *basin_grid.get(point))
             .counts()
             .into_values()

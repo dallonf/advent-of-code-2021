@@ -1,10 +1,9 @@
-use std::collections::{hash_map::Entry, HashMap};
-
 // Day 15: Chiton
 use crate::{
     prelude::*,
     shared::grid::{ArrayGrid, Grid, Point},
 };
+use std::collections::{hash_map::Entry, HashMap};
 
 lazy_static! {
     static ref PUZZLE_INPUT: ArrayGrid<u8> =
@@ -22,7 +21,7 @@ struct NodeInfo {
 }
 
 fn find_lowest_risk_path(map: &ArrayGrid<u8>) -> u32 {
-    let destination = Point::new(map.width() - 1, map.height() - 1);
+    let destination = Point::new(map.layout().width - 1, map.layout().height - 1);
     let mut pending_visit: HashMap<Point, NodeInfo> = HashMap::new();
     let mut visited: HashMap<Point, NodeInfo> = HashMap::new();
     let mut current = Point::new(0, 0);
@@ -40,9 +39,8 @@ fn find_lowest_risk_path(map: &ArrayGrid<u8>) -> u32 {
             ..
         } = pending_visit.get(&current).unwrap();
 
-        for neighbor in map
-            .adjacent_points(current)
-            .into_iter()
+        for neighbor in current
+            .adjacent_points(map.layout())
             .filter(|point| !visited.contains_key(&point))
         {
             let cost = *map.get(neighbor);

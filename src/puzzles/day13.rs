@@ -1,6 +1,6 @@
 // Day 13: Transparent Origami
 use crate::prelude::*;
-use crate::shared::grid::{Grid, Point, SparseGrid};
+use crate::shared::grid::{HashGrid, Point, SparseGrid};
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::str::FromStr;
@@ -22,12 +22,12 @@ pub fn part_two() -> String {
 }
 
 #[derive(Clone)]
-struct OrigamiGrid(SparseGrid<()>);
+struct OrigamiGrid(HashGrid<()>);
 
 impl OrigamiGrid {
     fn fold(&self, instruction: FoldInstruction) -> OrigamiGrid {
-        let mut new_grid = OrigamiGrid(SparseGrid::new());
-        for (point, _) in self.0.all_extant_points() {
+        let mut new_grid = OrigamiGrid(HashGrid::new());
+        for (point, _) in self.0.all_extant_points_iter() {
             let Point { x, y } = point;
             let new_point = match instruction {
                 FoldInstruction::X(fold_x) => {
@@ -51,13 +51,13 @@ impl OrigamiGrid {
     }
 
     fn count_dots(&self) -> usize {
-        self.0.all_extant_points().count()
+        self.0.all_extant_points_iter().count()
     }
 }
 
 impl FromIterator<Point> for OrigamiGrid {
     fn from_iter<T: IntoIterator<Item = Point>>(iter: T) -> Self {
-        let mut grid = OrigamiGrid(SparseGrid::new());
+        let mut grid = OrigamiGrid(HashGrid::new());
         for point in iter {
             grid.0.set(point, ());
         }
@@ -67,8 +67,8 @@ impl FromIterator<Point> for OrigamiGrid {
 
 impl Display for OrigamiGrid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let width = self.0.width();
-        let display = (0..self.0.height())
+        let width = self.0.layout().width;
+        let display = (0..self.0.layout().height)
             .map(|y| {
                 (0..width)
                     .map(|x| match self.0.get(Point::new(x, y)) {
