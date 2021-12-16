@@ -16,6 +16,12 @@ pub fn part_one() -> Result<u32, String> {
     Ok(packet.version_sum())
 }
 
+pub fn part_two() -> Result<u64, String> {
+    let mut bit_stream = into_bit_stream(&PUZZLE_INPUT);
+    let packet = Packet::read(&mut bit_stream)?;
+    packet.evaluate()
+}
+
 fn parse_hexadecimal(input: &str) -> Result<Vec<u8>, String> {
     let input = if input.len() % 2 == 0 {
         Cow::from(input)
@@ -56,16 +62,31 @@ fn read_int(iter: &mut impl Iterator<Item = bool>, bits: usize) -> Result<u64, S
     Ok(result)
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct LiteralPacket {
-    version: u8,
-    value: u64,
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum OperatorPacketType {
+    Sum,
+    Product,
+    Minimum,
+    Maximum,
+    GreaterThan,
+    LessThan,
+    EqualTo,
 }
-#[derive(Debug, PartialEq, Eq)]
-struct OperatorPacket {
-    version: u8,
-    packet_type: u8,
-    sub_packets: Vec<Packet>,
+
+impl OperatorPacketType {
+    fn from_id(id: u8) -> Result<Self, String> {
+        match id {
+            0 => Ok(Self::Sum),
+            1 => Ok(Self::Product),
+            2 => Ok(Self::Minimum),
+            3 => Ok(Self::Maximum),
+            4 => Err("This is a literal packet".to_string()),
+            5 => Ok(Self::GreaterThan),
+            6 => Ok(Self::LessThan),
+            7 => Ok(Self::EqualTo),
+            _ => Err(format!("Unrecognized operator type ID: {}", id)),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -74,9 +95,90 @@ enum Packet {
     Operator(OperatorPacket),
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct LiteralPacket {
+    version: u8,
+    value: u64,
+}
+#[derive(Debug, PartialEq, Eq)]
+struct OperatorPacket {
+    version: u8,
+    packet_type: OperatorPacketType,
+    sub_packets: Vec<Packet>,
+}
+
+impl OperatorPacket {
+    fn evaluate(&self) -> Result<u64, String> {
+        let evaluated_sub_packets = || {
+            self.sub_packets
+                .iter()
+                .map(|it| it.evaluate())
+                .collect::<Result<Vec<_>, _>>()
+        };
+        match self.packet_type {
+            OperatorPacketType::Sum => Ok(evaluated_sub_packets()?.into_iter().sum()),
+            OperatorPacketType::Product => Ok(evaluated_sub_packets()?.into_iter().product()),
+            OperatorPacketType::Minimum => evaluated_sub_packets()?
+                .into_iter()
+                .min()
+                .ok_or("Can't get the minimum of 0 sub-packets".to_string()),
+            OperatorPacketType::Maximum => evaluated_sub_packets()?
+                .into_iter()
+                .max()
+                .ok_or("Can't get the minimum of 0 sub-packets".to_string()),
+            OperatorPacketType::GreaterThan => {
+                if self.sub_packets.len() != 2 {
+                    return Err(format!(
+                        "Expected 2 subpackets for GreaterThan operation, but got {}",
+                        self.sub_packets.len()
+                    ));
+                }
+                let a = self.sub_packets[0].evaluate();
+                let b = self.sub_packets[1].evaluate();
+                if a > b {
+                    Ok(1)
+                } else {
+                    Ok(0)
+                }
+            }
+            OperatorPacketType::LessThan => {
+                if self.sub_packets.len() != 2 {
+                    return Err(format!(
+                        "Expected 2 subpackets for LessThan operation, but got {}",
+                        self.sub_packets.len()
+                    ));
+                }
+                let a = self.sub_packets[0].evaluate();
+                let b = self.sub_packets[1].evaluate();
+                if a < b {
+                    Ok(1)
+                } else {
+                    Ok(0)
+                }
+            }
+            OperatorPacketType::EqualTo => {
+                if self.sub_packets.len() != 2 {
+                    return Err(format!(
+                        "Expected 2 subpackets for EqualTo operation, but got {}",
+                        self.sub_packets.len()
+                    ));
+                }
+                let a = self.sub_packets[0].evaluate();
+                let b = self.sub_packets[1].evaluate();
+                if a == b {
+                    Ok(1)
+                } else {
+                    Ok(0)
+                }
+            }
+        }
+    }
+}
+
 const PACKET_TYPE_LITERAL: u8 = 4;
 
 impl Packet {
+    #[allow(dead_code)]
     fn new_literal(version: u8, value: u64) -> Self {
         Packet::Literal(LiteralPacket { version, value })
     }
@@ -124,7 +226,7 @@ impl Packet {
 
             Ok(Packet::Operator(OperatorPacket {
                 version,
-                packet_type,
+                packet_type: OperatorPacketType::from_id(packet_type)?,
                 sub_packets,
             }))
         }
@@ -138,6 +240,13 @@ impl Packet {
                     packet.sub_packets.iter().map(|it| it.version_sum()).sum();
                 sub_packet_version_sum + packet.version as u32
             }
+        }
+    }
+
+    fn evaluate(&self) -> Result<u64, String> {
+        match self {
+            Packet::Literal(packet) => Ok(packet.value),
+            Packet::Operator(packet) => packet.evaluate(),
         }
     }
 }
@@ -221,7 +330,7 @@ mod tests {
     fn parse_operator_packet_length_type_0() {
         let expected = Packet::Operator(OperatorPacket {
             version: 1,
-            packet_type: 6,
+            packet_type: OperatorPacketType::LessThan,
             sub_packets: vec![Packet::new_literal(6, 10), Packet::new_literal(2, 20)],
         });
         let bytes = parse_hexadecimal("38006F45291200").unwrap();
@@ -234,7 +343,7 @@ mod tests {
     fn parse_operator_packet_length_type_1() {
         let expected = Packet::Operator(OperatorPacket {
             version: 7,
-            packet_type: 3,
+            packet_type: OperatorPacketType::Maximum,
             sub_packets: vec![
                 Packet::new_literal(2, 1),
                 Packet::new_literal(4, 2),
@@ -279,5 +388,34 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, Ok(925));
+    }
+
+    #[test]
+    fn test_evaluate() {
+        assert_eq!(Packet::from_str("C200B40A82").unwrap().evaluate(), Ok(3));
+        assert_eq!(Packet::from_str("04005AC33890").unwrap().evaluate(), Ok(54));
+        assert_eq!(
+            Packet::from_str("880086C3E88112").unwrap().evaluate(),
+            Ok(7)
+        );
+        assert_eq!(
+            Packet::from_str("CE00C43D881120").unwrap().evaluate(),
+            Ok(9)
+        );
+        assert_eq!(Packet::from_str("D8005AC2A8F0").unwrap().evaluate(), Ok(1));
+        assert_eq!(Packet::from_str("F600BC2D8F").unwrap().evaluate(), Ok(0));
+        assert_eq!(Packet::from_str("9C005AC2F8F0").unwrap().evaluate(), Ok(0));
+        assert_eq!(
+            Packet::from_str("9C0141080250320F1802104A08")
+                .unwrap()
+                .evaluate(),
+            Ok(1)
+        );
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, Ok(342997120375));
     }
 }
