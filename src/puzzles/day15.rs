@@ -1,9 +1,10 @@
 // Day 15: Chiton
 use crate::{
     prelude::*,
-    shared::grid::{ArrayGrid, Grid, Point},
+    shared::grid::{ArrayGrid, Grid, GridLayout, Point},
 };
 use std::collections::{hash_map::Entry, HashMap};
+use std::ops::Deref;
 
 lazy_static! {
     static ref PUZZLE_INPUT: ArrayGrid<u8> =
@@ -11,7 +12,12 @@ lazy_static! {
 }
 
 pub fn part_one() -> u32 {
-    find_lowest_risk_path(&PUZZLE_INPUT)
+    find_lowest_risk_path(PUZZLE_INPUT.deref())
+}
+
+pub fn part_two() -> u32 {
+    let expanded = ExpandedGrid::new(&PUZZLE_INPUT);
+    find_lowest_risk_path(&expanded)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -20,7 +26,22 @@ struct NodeInfo {
     distance: u32,
 }
 
-fn find_lowest_risk_path(map: &ArrayGrid<u8>) -> u32 {
+trait RiskMap {
+    fn layout(&self) -> &GridLayout;
+    fn get(&self, point: Point) -> u8;
+}
+
+impl RiskMap for ArrayGrid<u8> {
+    fn layout(&self) -> &GridLayout {
+        Grid::layout(self)
+    }
+
+    fn get(&self, point: Point) -> u8 {
+        *Grid::get(self, point)
+    }
+}
+
+fn find_lowest_risk_path(map: &impl RiskMap) -> u32 {
     let destination = Point::new(map.layout().width - 1, map.layout().height - 1);
     let mut pending_visit: HashMap<Point, NodeInfo> = HashMap::new();
     let mut visited: HashMap<Point, NodeInfo> = HashMap::new();
@@ -43,7 +64,7 @@ fn find_lowest_risk_path(map: &ArrayGrid<u8>) -> u32 {
             .adjacent_points(map.layout())
             .filter(|point| !visited.contains_key(&point))
         {
-            let cost = *map.get(neighbor);
+            let cost = map.get(neighbor);
             let path_distance = current_distance + cost as u32;
             match pending_visit.entry(neighbor) {
                 Entry::Occupied(mut entry) => {
@@ -82,6 +103,43 @@ fn find_lowest_risk_path(map: &ArrayGrid<u8>) -> u32 {
     }
 }
 
+const META_GRID_SCALE: usize = 5;
+
+struct ExpandedGrid<'a> {
+    original_grid: &'a ArrayGrid<u8>,
+    expanded_layout: GridLayout,
+}
+
+impl<'a> ExpandedGrid<'a> {
+    fn new(original_grid: &'a ArrayGrid<u8>) -> Self {
+        ExpandedGrid {
+            original_grid,
+            expanded_layout: GridLayout::new(
+                Grid::layout(original_grid).width * META_GRID_SCALE,
+                Grid::layout(original_grid).width * META_GRID_SCALE,
+            ),
+        }
+    }
+}
+
+impl RiskMap for ExpandedGrid<'_> {
+    fn layout(&self) -> &GridLayout {
+        &self.expanded_layout
+    }
+
+    fn get(&self, point: Point) -> u8 {
+        let original_layout = Grid::layout(self.original_grid);
+        let meta_grid_x = point.x / original_layout.width;
+        let meta_grid_y = point.y / original_layout.height;
+        let original_point = Point::new(
+            point.x % original_layout.width,
+            point.y % original_layout.height,
+        );
+        let original_value = Grid::get(self.original_grid, original_point);
+        (((original_value - 1) + meta_grid_x as u8 + meta_grid_y as u8) % 9) + 1
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_example() {
-        let result = find_lowest_risk_path(&EXAMPLE_INPUT);
+        let result = find_lowest_risk_path(EXAMPLE_INPUT.deref());
         assert_eq!(result, 40);
     }
 
@@ -112,5 +170,59 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, 361);
+    }
+
+    #[test]
+    fn test_simple_expansion() {
+        let base = ArrayGrid::from_digit_lines(&["8"]).unwrap();
+        let expanded = ExpandedGrid::new(&base);
+        let expected =
+            ArrayGrid::from_digit_lines(&["89123", "91234", "12345", "23456", "34567"]).unwrap();
+
+        fn collect_test_grid(grid: &impl RiskMap) -> Vec<(Point, u8)> {
+            grid.layout()
+                .all_points()
+                .map(|point| (point, grid.get(point)))
+                .collect()
+        }
+
+        assert_eq!(collect_test_grid(&expanded), collect_test_grid(&expected));
+    }
+
+    #[test]
+    fn test_expansion() {
+        let expanded = ExpandedGrid::new(&EXAMPLE_INPUT);
+        let original = Point::new(2, 1);
+        assert_eq!(*Grid::get(EXAMPLE_INPUT.deref(), original), 8);
+        let expected =
+            ArrayGrid::from_digit_lines(&["89123", "91234", "12345", "23456", "34567"]).unwrap();
+        let original_layout = Grid::layout(EXAMPLE_INPUT.deref());
+        for (meta_x, meta_y) in (0..META_GRID_SCALE).cartesian_product(0..META_GRID_SCALE) {
+            let expanded_point = Point::new(
+                original.x + meta_x * original_layout.width,
+                original.y + meta_y * original_layout.height,
+            );
+            let meta_point = Point::new(meta_x, meta_y);
+            assert_eq!(
+                expanded.get(expanded_point),
+                *Grid::get(&expected, meta_point),
+                "Expanded point: {:?}; Meta point: {:?}",
+                expanded_point,
+                meta_point
+            );
+        }
+    }
+
+    #[test]
+    fn test_expanded_path() {
+        let expanded = ExpandedGrid::new(&EXAMPLE_INPUT);
+        let result = find_lowest_risk_path(&expanded);
+        assert_eq!(result, 315);
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, 2838);
     }
 }
