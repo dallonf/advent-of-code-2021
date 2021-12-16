@@ -1,5 +1,7 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
+use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
@@ -12,6 +14,46 @@ pub struct Point {
 impl Point {
     pub fn new(x: usize, y: usize) -> Self {
         Point { x, y }
+    }
+
+    pub fn adjacent_points(&self, layout: &GridLayout) -> impl Iterator<Item = Point> {
+        let x = self.x as isize;
+        let y = self.y as isize;
+        let width = layout.width as isize;
+        let height = layout.height as isize;
+        [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+            .into_iter()
+            .filter_map(move |(new_x, new_y)| {
+                if new_x >= 0 && new_x < width && new_y >= 0 && new_y < height {
+                    Some(Point::new(new_x as usize, new_y as usize))
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub fn adjacent_points_with_diagonals(
+        &self,
+        layout: &GridLayout,
+    ) -> impl Iterator<Item = Point> {
+        let x = self.x as isize;
+        let y = self.y as isize;
+        let width = layout.width as isize;
+        let height = layout.height as isize;
+        RangeInclusive::new(x - 1, x + 1).flat_map(move |new_x| {
+            RangeInclusive::new(y - 1, y + 1).filter_map(move |new_y| {
+                if new_x >= 0
+                    && new_x < width
+                    && new_y >= 0
+                    && new_y < height
+                    && (new_x, new_y) != (x, y)
+                {
+                    Some(Point::new(new_x as usize, new_y as usize))
+                } else {
+                    None
+                }
+            })
+        })
     }
 }
 
@@ -34,74 +76,90 @@ impl FromStr for Point {
     }
 }
 
-pub trait Grid {
-    fn width(&self) -> usize;
-    fn height(&self) -> usize;
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct GridLayout {
+    pub width: usize,
+    pub height: usize,
+}
 
-    fn adjacent_points(&self, point: Point) -> Vec<Point> {
-        let x = point.x as isize;
-        let y = point.y as isize;
-        [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
-            .into_iter()
-            .filter_map(|(x, y)| {
-                if x >= 0 && x < self.width() as isize && y >= 0 && y < self.height() as isize {
-                    Some(Point::new(x as usize, y as usize))
-                } else {
-                    None
-                }
-            })
-            .collect()
+impl GridLayout {
+    pub fn new(width: usize, height: usize) -> Self {
+        GridLayout { width, height }
     }
 
-    fn adjacent_points_with_diagonals(&self, point: Point) -> Vec<Point> {
-        let x = point.x as isize;
-        let y = point.y as isize;
-        RangeInclusive::new(x - 1, x + 1)
-            .flat_map(move |new_x| {
-                RangeInclusive::new(y - 1, y + 1).filter_map(move |new_y| {
-                    if new_x >= 0
-                        && new_x < self.width() as isize
-                        && new_y >= 0
-                        && new_y < self.height() as isize
-                        && (new_x, new_y) != (x, y)
-                    {
-                        Some(Point::new(new_x as usize, new_y as usize))
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect()
+    pub fn all_points<'a>(&'a self) -> impl Iterator<Item = Point> + 'a {
+        (0..self.height).flat_map(|y| (0..self.width).map(move |x| Point::new(x, y)))
+    }
+}
+
+pub trait SparseGrid<T> {
+    fn layout(&self) -> &GridLayout;
+    fn get(&self, point: Point) -> Option<&T>;
+    fn set(&mut self, point: Point, new_val: T);
+    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
+    where
+        Function: Fn(Option<&T>) -> T;
+    fn all_extant_points(&self) -> Vec<(Point, &T)>;
+}
+
+pub trait Grid<T> {
+    fn layout(&self) -> &GridLayout;
+    fn get(&self, point: Point) -> &T;
+    fn set(&mut self, point: Point, new_val: T);
+    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
+    where
+        Function: Fn(&T) -> T;
+
+    fn as_sparse<'a>(&'a mut self) -> SparseGridAdaptor<'a, T, Self>
+    where
+        Self: Sized,
+    {
+        SparseGridAdaptor(self, PhantomData)
+    }
+}
+
+pub struct SparseGridAdaptor<'a, T, TGrid: Grid<T>>(pub &'a mut TGrid, PhantomData<T>);
+
+impl<'a, T, TGrid: Grid<T>> SparseGrid<T> for SparseGridAdaptor<'a, T, TGrid> {
+    fn layout(&self) -> &GridLayout {
+        self.0.layout()
     }
 
-    fn all_points(&self) -> Vec<Point> {
-        (0..self.height())
-            .flat_map(|y| (0..self.width()).map(move |x| Point::new(x, y)))
+    fn get(&self, point: Point) -> Option<&T> {
+        Some(self.0.get(point))
+    }
+
+    fn set(&mut self, point: Point, new_val: T) {
+        self.0.set(point, new_val)
+    }
+
+    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
+    where
+        Function: Fn(Option<&T>) -> T,
+    {
+        self.0.update(point, |prev| new_val_fn(Some(prev)))
+    }
+
+    fn all_extant_points(&self) -> Vec<(Point, &T)> {
+        self.0
+            .layout()
+            .all_points()
+            .map(|point| (point, self.0.get(point)))
             .collect()
     }
 }
 
+// impl<T, TGrid: Grid<T>> SparseGridAdaptor<T, TGrid> {}
+
 #[derive(Clone)]
 pub struct ArrayGrid<T> {
-    width: usize,
+    layout: GridLayout,
     data: Box<[T]>,
 }
 
 impl<T> ArrayGrid<T> {
     fn index_of(&self, point: Point) -> usize {
-        point.y * self.width + point.x
-    }
-
-    pub fn get(&self, point: Point) -> &T {
-        &self.data[self.index_of(point)]
-    }
-
-    pub fn set(&mut self, point: Point, new_val: T) {
-        self.data[self.index_of(point)] = new_val;
-    }
-
-    pub fn update(&mut self, point: Point, new_val_fn: fn(prev: &T) -> T) {
-        self.data[self.index_of(point)] = new_val_fn(&self.data[self.index_of(point)]);
+        point.y * self.layout.width + point.x
     }
 
     // this is mostly for debugging
@@ -110,23 +168,13 @@ impl<T> ArrayGrid<T> {
     where
         Other: Default + Clone,
     {
-        let mut new_grid = ArrayGrid::new(self.width(), self.height());
-        for point in self.all_points().into_iter() {
+        let mut new_grid = ArrayGrid::new(self.layout.width, self.layout.height);
+        for point in self.layout.all_points() {
             let prev_val = self.get(point);
             let new_val = map_fn(prev_val);
-            new_grid.set(point, new_val);
+            Grid::set(&mut new_grid, point, new_val);
         }
         new_grid
-    }
-}
-
-impl<T> Grid for ArrayGrid<T> {
-    fn width(&self) -> usize {
-        self.width
-    }
-
-    fn height(&self) -> usize {
-        self.data.len() / self.width
     }
 }
 
@@ -135,10 +183,14 @@ where
     T: Default + Clone,
 {
     pub fn new(width: usize, height: usize) -> Self {
-        let data = vec![T::default(); width * height];
+        Self::from_layout(GridLayout::new(width, height))
+    }
+
+    pub fn from_layout(layout: GridLayout) -> Self {
+        let data = vec![T::default(); layout.width * layout.height];
         ArrayGrid {
             data: data.into_boxed_slice(),
-            width,
+            layout,
         }
     }
 }
@@ -165,13 +217,39 @@ impl ArrayGrid<u8> {
                 })
             })
             .collect::<Result<Box<[u8]>, _>>()?;
-        Ok(ArrayGrid { width, data })
+
+        let layout = GridLayout::new(width, data.len() / width);
+        Ok(ArrayGrid {
+            data,
+            layout: layout,
+        })
+    }
+}
+
+impl<T> Grid<T> for ArrayGrid<T> {
+    fn layout(&self) -> &GridLayout {
+        &self.layout
+    }
+
+    fn get(&self, point: Point) -> &T {
+        &self.data[self.index_of(point)]
+    }
+
+    fn set(&mut self, point: Point, new_val: T) {
+        self.data[self.index_of(point)] = new_val;
+    }
+
+    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
+    where
+        Function: Fn(&T) -> T,
+    {
+        self.data[self.index_of(point)] = new_val_fn(&self.data[self.index_of(point)]);
     }
 }
 
 impl<T: Display> Debug for ArrayGrid<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let size = format!("{} x {}", self.width(), self.height());
+        let size = format!("{} x {}", self.layout.width, self.layout.height);
         let data_strs: Box<[String]> = self.data.iter().map(|data| data.to_string()).collect();
 
         write!(f, "Grid ({})\n", size)?;
@@ -182,9 +260,9 @@ impl<T: Display> Debug for ArrayGrid<T> {
             .map(|it| format!("{:indent$}", it, indent = max_size.unwrap()))
             .collect();
 
-        let grid_lines: Box<[String]> = (0..self.height())
+        let grid_lines: Box<[String]> = (0..self.layout.height)
             .map(|y| {
-                (0..self.width())
+                (0..self.layout.width)
                     .map(|x| data_strs[self.index_of(Point::new(x, y))].as_str())
                     .collect::<Box<[&str]>>()
                     .join("")
@@ -198,60 +276,64 @@ impl<T: Display> Debug for ArrayGrid<T> {
 }
 
 #[derive(Clone)]
-pub struct SparseGrid<T> {
+pub struct HashGrid<T> {
     map: HashMap<Point, T>,
+    layout: GridLayout,
 }
 
-impl<T> SparseGrid<T> {
+impl<T> HashGrid<T> {
     pub fn new() -> Self {
-        SparseGrid {
+        HashGrid {
             map: HashMap::new(),
+            layout: GridLayout::new(0, 0),
         }
     }
 
-    pub fn get(&self, point: Point) -> Option<&T> {
+    pub fn all_extant_points_iter(&self) -> impl Iterator<Item = (Point, &T)> {
+        self.map.iter().map(|(point, it)| (*point, it))
+    }
+
+    fn grow_layout(&mut self, new_point: Point) {
+        if self.layout.width <= new_point.x {
+            self.layout.width = new_point.x + 1;
+        }
+        if self.layout.height <= new_point.y {
+            self.layout.height = new_point.y + 1;
+        }
+    }
+}
+
+impl<T> SparseGrid<T> for HashGrid<T> {
+    fn layout(&self) -> &GridLayout {
+        &self.layout
+    }
+
+    fn get(&self, point: Point) -> Option<&T> {
         self.map.get(&point)
     }
 
-    pub fn set(&mut self, point: Point, new_val: T) {
+    fn set(&mut self, point: Point, new_val: T) {
         self.map.insert(point, new_val);
+        self.grow_layout(point);
     }
 
-    pub fn update(&mut self, point: Point, new_val_fn: fn(prev: Option<&T>) -> T) {
+    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
+    where
+        Function: Fn(Option<&T>) -> T,
+    {
         match self.map.entry(point) {
             Entry::Occupied(mut entry) => {
                 entry.insert(new_val_fn(Some(entry.get())));
             }
             Entry::Vacant(entry) => {
                 entry.insert(new_val_fn(None));
+                self.grow_layout(point);
             }
         }
     }
 
-    pub fn all_extant_points(&self) -> impl Iterator<Item = (Point, &T)> {
-        self.map.iter().map(|(point, it)| (*point, it))
-    }
-}
-
-impl<T> Grid for SparseGrid<T> {
-    fn width(&self) -> usize {
-        // TODO: probably cache this
-        self.map
-            .keys()
-            .map(|it| it.x)
-            .max()
-            .map(|it| it + 1)
-            .unwrap_or(0)
-    }
-
-    fn height(&self) -> usize {
-        // TODO: probably cache this
-        self.map
-            .keys()
-            .map(|it| it.y)
-            .max()
-            .map(|it| it + 1)
-            .unwrap_or(0)
+    fn all_extant_points(&self) -> Vec<(Point, &T)> {
+        self.all_extant_points_iter().collect()
     }
 }
 
@@ -280,7 +362,9 @@ mod tests {
 
     #[test]
     fn test_get_adjacent_points() {
-        let result = EXAMPLE_INPUT.adjacent_points(Point::new(0, 0));
+        let result: Vec<Point> = Point::new(0, 0)
+            .adjacent_points(EXAMPLE_INPUT.layout())
+            .collect_vec();
         let expected: Vec<Point> = vec![Point::new(1, 0), Point::new(0, 1)];
         assert_eq!(result, expected);
     }

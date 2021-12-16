@@ -26,7 +26,6 @@ fn day07(c: &mut Criterion) {
 
 fn day15(c: &mut Criterion) {
     c.benchmark_group("Day 15")
-        .sample_size(10)
         .bench_function("Part One", |b| b.iter(|| day15::part_one()));
 }
 

@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::shared::grid::{Point, SparseGrid};
+use crate::shared::grid::{HashGrid, Point, SparseGrid};
 use std::fmt::Debug;
 use std::str::FromStr;
 
@@ -84,11 +84,11 @@ impl Iterator for LineIterator {
     }
 }
 
-struct VentGrid(SparseGrid<usize>);
+struct VentGrid(HashGrid<usize>);
 
 impl FromIterator<Line> for VentGrid {
     fn from_iter<T: IntoIterator<Item = Line>>(iter: T) -> Self {
-        let mut grid = SparseGrid::new();
+        let mut grid = HashGrid::new();
         iter.into_iter()
             .flat_map(|line| line.points())
             .for_each(|point| {
@@ -104,7 +104,7 @@ impl FromIterator<Line> for VentGrid {
 impl VentGrid {
     fn overlapping_points(&self) -> usize {
         self.0
-            .all_extant_points()
+            .all_extant_points_iter()
             .filter(|(_, &count)| count > 1)
             .count()
     }
