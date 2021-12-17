@@ -1,9 +1,8 @@
+// Day 16: Packet Decoder
+use crate::prelude::*;
 use std::borrow::Cow;
 use std::fmt::Debug;
 use std::str::FromStr;
-
-// Day 16: Packet Decoder
-use crate::prelude::*;
 
 lazy_static! {
     static ref PUZZLE_INPUT: Vec<u8> =

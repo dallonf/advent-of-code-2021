@@ -1,7 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
-use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
@@ -92,65 +91,6 @@ impl GridLayout {
     }
 }
 
-pub trait SparseGrid<T> {
-    fn layout(&self) -> &GridLayout;
-    fn get(&self, point: Point) -> Option<&T>;
-    fn set(&mut self, point: Point, new_val: T);
-    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
-    where
-        Function: Fn(Option<&T>) -> T;
-    fn all_extant_points(&self) -> Vec<(Point, &T)>;
-}
-
-pub trait Grid<T> {
-    fn layout(&self) -> &GridLayout;
-    fn get(&self, point: Point) -> &T;
-    fn set(&mut self, point: Point, new_val: T);
-    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
-    where
-        Function: Fn(&T) -> T;
-
-    fn as_sparse<'a>(&'a mut self) -> SparseGridAdaptor<'a, T, Self>
-    where
-        Self: Sized,
-    {
-        SparseGridAdaptor(self, PhantomData)
-    }
-}
-
-pub struct SparseGridAdaptor<'a, T, TGrid: Grid<T>>(pub &'a mut TGrid, PhantomData<T>);
-
-impl<'a, T, TGrid: Grid<T>> SparseGrid<T> for SparseGridAdaptor<'a, T, TGrid> {
-    fn layout(&self) -> &GridLayout {
-        self.0.layout()
-    }
-
-    fn get(&self, point: Point) -> Option<&T> {
-        Some(self.0.get(point))
-    }
-
-    fn set(&mut self, point: Point, new_val: T) {
-        self.0.set(point, new_val)
-    }
-
-    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
-    where
-        Function: Fn(Option<&T>) -> T,
-    {
-        self.0.update(point, |prev| new_val_fn(Some(prev)))
-    }
-
-    fn all_extant_points(&self) -> Vec<(Point, &T)> {
-        self.0
-            .layout()
-            .all_points()
-            .map(|point| (point, self.0.get(point)))
-            .collect()
-    }
-}
-
-// impl<T, TGrid: Grid<T>> SparseGridAdaptor<T, TGrid> {}
-
 #[derive(Clone)]
 pub struct ArrayGrid<T> {
     layout: GridLayout,
@@ -160,6 +100,25 @@ pub struct ArrayGrid<T> {
 impl<T> ArrayGrid<T> {
     fn index_of(&self, point: Point) -> usize {
         point.y * self.layout.width + point.x
+    }
+
+    pub fn layout(&self) -> &GridLayout {
+        &self.layout
+    }
+
+    pub fn get(&self, point: Point) -> &T {
+        &self.data[self.index_of(point)]
+    }
+
+    pub fn set(&mut self, point: Point, new_val: T) {
+        self.data[self.index_of(point)] = new_val;
+    }
+
+    pub fn update<Function>(&mut self, point: Point, new_val_fn: Function)
+    where
+        Function: Fn(&T) -> T,
+    {
+        self.data[self.index_of(point)] = new_val_fn(&self.data[self.index_of(point)]);
     }
 
     // this is mostly for debugging
@@ -172,7 +131,7 @@ impl<T> ArrayGrid<T> {
         for point in self.layout.all_points() {
             let prev_val = self.get(point);
             let new_val = map_fn(prev_val);
-            Grid::set(&mut new_grid, point, new_val);
+            new_grid.set(point, new_val);
         }
         new_grid
     }
@@ -226,27 +185,6 @@ impl ArrayGrid<u8> {
     }
 }
 
-impl<T> Grid<T> for ArrayGrid<T> {
-    fn layout(&self) -> &GridLayout {
-        &self.layout
-    }
-
-    fn get(&self, point: Point) -> &T {
-        &self.data[self.index_of(point)]
-    }
-
-    fn set(&mut self, point: Point, new_val: T) {
-        self.data[self.index_of(point)] = new_val;
-    }
-
-    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
-    where
-        Function: Fn(&T) -> T,
-    {
-        self.data[self.index_of(point)] = new_val_fn(&self.data[self.index_of(point)]);
-    }
-}
-
 impl<T: Display> Debug for ArrayGrid<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let size = format!("{} x {}", self.layout.width, self.layout.height);
@@ -289,35 +227,20 @@ impl<T> HashGrid<T> {
         }
     }
 
-    pub fn all_extant_points_iter(&self) -> impl Iterator<Item = (Point, &T)> {
-        self.map.iter().map(|(point, it)| (*point, it))
-    }
-
-    fn grow_layout(&mut self, new_point: Point) {
-        if self.layout.width <= new_point.x {
-            self.layout.width = new_point.x + 1;
-        }
-        if self.layout.height <= new_point.y {
-            self.layout.height = new_point.y + 1;
-        }
-    }
-}
-
-impl<T> SparseGrid<T> for HashGrid<T> {
-    fn layout(&self) -> &GridLayout {
+    pub fn layout(&self) -> &GridLayout {
         &self.layout
     }
 
-    fn get(&self, point: Point) -> Option<&T> {
+    pub fn get(&self, point: Point) -> Option<&T> {
         self.map.get(&point)
     }
 
-    fn set(&mut self, point: Point, new_val: T) {
+    pub fn set(&mut self, point: Point, new_val: T) {
         self.map.insert(point, new_val);
         self.grow_layout(point);
     }
 
-    fn update<Function>(&mut self, point: Point, new_val_fn: Function)
+    pub fn update<Function>(&mut self, point: Point, new_val_fn: Function)
     where
         Function: Fn(Option<&T>) -> T,
     {
@@ -332,8 +255,17 @@ impl<T> SparseGrid<T> for HashGrid<T> {
         }
     }
 
-    fn all_extant_points(&self) -> Vec<(Point, &T)> {
-        self.all_extant_points_iter().collect()
+    pub fn all_extant_points(&self) -> impl Iterator<Item = (Point, &T)> {
+        self.map.iter().map(|(point, it)| (*point, it))
+    }
+
+    fn grow_layout(&mut self, new_point: Point) {
+        if self.layout.width <= new_point.x {
+            self.layout.width = new_point.x + 1;
+        }
+        if self.layout.height <= new_point.y {
+            self.layout.height = new_point.y + 1;
+        }
     }
 }
 

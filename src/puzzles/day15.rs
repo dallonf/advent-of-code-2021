@@ -1,7 +1,7 @@
 // Day 15: Chiton
 use crate::{
     prelude::*,
-    shared::grid::{ArrayGrid, Grid, GridLayout, Point},
+    shared::grid::{ArrayGrid, GridLayout, Point},
 };
 use std::collections::{hash_map::Entry, HashMap};
 use std::ops::Deref;
@@ -33,11 +33,11 @@ trait RiskMap {
 
 impl RiskMap for ArrayGrid<u8> {
     fn layout(&self) -> &GridLayout {
-        Grid::layout(self)
+        self.layout()
     }
 
     fn get(&self, point: Point) -> u8 {
-        *Grid::get(self, point)
+        *self.get(point)
     }
 }
 
@@ -115,8 +115,8 @@ impl<'a> ExpandedGrid<'a> {
         ExpandedGrid {
             original_grid,
             expanded_layout: GridLayout::new(
-                Grid::layout(original_grid).width * META_GRID_SCALE,
-                Grid::layout(original_grid).width * META_GRID_SCALE,
+                original_grid.layout().width * META_GRID_SCALE,
+                original_grid.layout().width * META_GRID_SCALE,
             ),
         }
     }
@@ -128,14 +128,14 @@ impl RiskMap for ExpandedGrid<'_> {
     }
 
     fn get(&self, point: Point) -> u8 {
-        let original_layout = Grid::layout(self.original_grid);
+        let original_layout = self.original_grid.layout();
         let meta_grid_x = point.x / original_layout.width;
         let meta_grid_y = point.y / original_layout.height;
         let original_point = Point::new(
             point.x % original_layout.width,
             point.y % original_layout.height,
         );
-        let original_value = Grid::get(self.original_grid, original_point);
+        let original_value = self.original_grid.get(original_point);
         (((original_value - 1) + meta_grid_x as u8 + meta_grid_y as u8) % 9) + 1
     }
 }
@@ -193,10 +193,10 @@ mod tests {
     fn test_expansion() {
         let expanded = ExpandedGrid::new(&EXAMPLE_INPUT);
         let original = Point::new(2, 1);
-        assert_eq!(*Grid::get(EXAMPLE_INPUT.deref(), original), 8);
+        assert_eq!(*EXAMPLE_INPUT.get(original), 8);
         let expected =
             ArrayGrid::from_digit_lines(&["89123", "91234", "12345", "23456", "34567"]).unwrap();
-        let original_layout = Grid::layout(EXAMPLE_INPUT.deref());
+        let original_layout = EXAMPLE_INPUT.layout();
         for (meta_x, meta_y) in (0..META_GRID_SCALE).cartesian_product(0..META_GRID_SCALE) {
             let expanded_point = Point::new(
                 original.x + meta_x * original_layout.width,
@@ -205,7 +205,7 @@ mod tests {
             let meta_point = Point::new(meta_x, meta_y);
             assert_eq!(
                 expanded.get(expanded_point),
-                *Grid::get(&expected, meta_point),
+                *expected.get(meta_point),
                 "Expanded point: {:?}; Meta point: {:?}",
                 expanded_point,
                 meta_point

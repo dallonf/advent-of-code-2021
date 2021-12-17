@@ -1,6 +1,6 @@
 // Day 13: Transparent Origami
 use crate::prelude::*;
-use crate::shared::grid::{HashGrid, Point, SparseGrid};
+use crate::shared::grid::{HashGrid, Point};
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::str::FromStr;
@@ -27,7 +27,7 @@ struct OrigamiGrid(HashGrid<()>);
 impl OrigamiGrid {
     fn fold(&self, instruction: FoldInstruction) -> OrigamiGrid {
         let mut new_grid = OrigamiGrid(HashGrid::new());
-        for (point, _) in self.0.all_extant_points_iter() {
+        for (point, _) in self.0.all_extant_points() {
             let Point { x, y } = point;
             let new_point = match instruction {
                 FoldInstruction::X(fold_x) => {
@@ -51,7 +51,7 @@ impl OrigamiGrid {
     }
 
     fn count_dots(&self) -> usize {
-        self.0.all_extant_points_iter().count()
+        self.0.all_extant_points().count()
     }
 }
 
