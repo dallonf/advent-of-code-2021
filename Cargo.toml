@@ -17,6 +17,8 @@ automod = "1.0.2"
 lazy_static = "1.4.0"
 itertools = "0.10.3"
 hex = "0.4.3"
+regex = "1.5.4"
+anyhow = "1.0.51"
 
 [dev-dependencies]
 criterion = "0.3"
