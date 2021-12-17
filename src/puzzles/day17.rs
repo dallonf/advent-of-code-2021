@@ -12,12 +12,16 @@ lazy_static! {
             .unwrap();
 }
 
+type Int = i32;
+
 pub fn part_one() -> Option<Int> {
     let result = find_highest_trajectory(&PUZZLE_INPUT);
     result.map(|it| it.highest_y)
 }
 
-type Int = i32;
+pub fn part_two() -> usize {
+    find_all_possible_trajectories(&PUZZLE_INPUT).len()
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 struct Vec2 {
@@ -76,6 +80,7 @@ impl Probe {
         self.velocity.y < 0 && self.position.y < target.bottom_left.y
     }
 
+    #[cfg(test)]
     fn launch_hits_target(&mut self, target: &BoxArea2D) -> bool {
         return match self.launch(target) {
             LaunchResult::Hit { .. } => true,
@@ -161,7 +166,7 @@ struct HighestTrajectoryResult {
     starting_velocity: Vec2,
 }
 
-fn find_highest_trajectory(target: &BoxArea2D) -> Option<HighestTrajectoryResult> {
+fn find_all_possible_trajectories(target: &BoxArea2D) -> Vec<HighestTrajectoryResult> {
     let furthest_x = [target.bottom_left.x, target.top_right.x]
         .into_iter()
         .max_by_key(|x| x.abs())
@@ -172,7 +177,7 @@ fn find_highest_trajectory(target: &BoxArea2D) -> Option<HighestTrajectoryResult
         RangeInclusive::new(furthest_x, 0)
     };
 
-    let possible_y_values = RangeInclusive::new(0, 250);
+    let possible_y_values = RangeInclusive::new(-250, 250);
 
     possible_y_values
         .into_par_iter()
@@ -192,6 +197,13 @@ fn find_highest_trajectory(target: &BoxArea2D) -> Option<HighestTrajectoryResult
                 LaunchResult::Missed => None,
             }
         })
+        .collect()
+}
+
+fn find_highest_trajectory(target: &BoxArea2D) -> Option<HighestTrajectoryResult> {
+    let all_trajectories = find_all_possible_trajectories(target);
+    all_trajectories
+        .into_iter()
         .max_by_key(|result| result.highest_y)
 }
 
@@ -254,5 +266,16 @@ mod tests {
         let result = part_one().unwrap();
         assert!(result > 2211);
         assert_eq!(result, 9180);
+    }
+
+    #[test]
+    fn get_all_possible_trajectories() {
+        assert_eq!(find_all_possible_trajectories(&EXAMPLE_INPUT).len(), 112);
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, 3767);
     }
 }
