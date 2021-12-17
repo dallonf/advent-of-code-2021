@@ -2,3 +2,4 @@
 pub use crate::shared::input::*;
 pub use itertools::Itertools;
 pub use lazy_static::lazy_static;
+pub use rayon::prelude::*;

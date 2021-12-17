@@ -175,7 +175,13 @@ fn find_highest_trajectory(target: &BoxArea2D) -> Option<HighestTrajectoryResult
     let possible_y_values = RangeInclusive::new(0, 250);
 
     possible_y_values
-        .flat_map(|y_vel| possible_x_values.clone().map(move |x_vel| (x_vel, y_vel)))
+        .into_par_iter()
+        .flat_map(|y_vel| {
+            possible_x_values
+                .clone()
+                .into_par_iter()
+                .map(move |x_vel| (x_vel, y_vel))
+        })
         .filter_map(|(x_vel, y_vel)| {
             let velocity = Vec2::new(x_vel, y_vel);
             match Probe::new(velocity).launch(target) {
