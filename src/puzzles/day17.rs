@@ -164,12 +164,9 @@ struct HighestTrajectoryResult {
 /// Assumes that there is at least one valid trajectory.
 /// Will get caught in an infinite loop if not.
 fn find_highest_trajectory(target: &BoxArea2D) -> HighestTrajectoryResult {
-    // whatever our X value, we want to come up a bit short, to avoid getting a horizontal trajectory
-    // where the probe hits right away
     let furthest_x = [target.bottom_left.x, target.top_right.x]
         .into_iter()
-        .min_by_key(|x| x.abs())
-        .map(|it| it - 1)
+        .max_by_key(|x| x.abs())
         .unwrap();
     let possible_x_values = if furthest_x > 0 {
         RangeInclusive::new(0, furthest_x)
@@ -209,7 +206,14 @@ fn find_highest_trajectory(target: &BoxArea2D) -> HighestTrajectoryResult {
                             Some(best_result)
                         }
                     }
-                    None => Some(new_result),
+                    None => {
+                        if new_result.highest_y > target.top_right.y {
+                            Some(new_result)
+                        } else {
+                            // c'mon, you can do better than that
+                            None
+                        }
+                    }
                 };
             }
             None => {
