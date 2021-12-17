@@ -1,6 +1,6 @@
 // Day 9: Smoke Basin
 use crate::prelude::*;
-use crate::shared::grid::{ArrayGrid, Grid, Point};
+use crate::shared::grid::{ArrayGrid, Point};
 
 lazy_static! {
     static ref PUZZLE_INPUT: SmokeBasinGrid = SmokeBasinGrid(

@@ -1,9 +1,9 @@
+// Day 5: Hydrothermal Venture
+
 use crate::prelude::*;
-use crate::shared::grid::{HashGrid, Point, SparseGrid};
+use crate::shared::grid::{HashGrid, Point};
 use std::fmt::Debug;
 use std::str::FromStr;
-
-// Day 5: Hydrothermal Venture
 
 fn parse_puzzle_input() -> Box<[Line]> {
     include_lines!("day05_input.txt")
@@ -104,7 +104,7 @@ impl FromIterator<Line> for VentGrid {
 impl VentGrid {
     fn overlapping_points(&self) -> usize {
         self.0
-            .all_extant_points_iter()
+            .all_extant_points()
             .filter(|(_, &count)| count > 1)
             .count()
     }

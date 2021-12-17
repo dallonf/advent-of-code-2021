@@ -1,6 +1,6 @@
 // Day 11: Dumbo Octopus
 use crate::prelude::*;
-use crate::shared::grid::{ArrayGrid, Grid, Point};
+use crate::shared::grid::{ArrayGrid, Point};
 use std::collections::VecDeque;
 
 lazy_static! {
