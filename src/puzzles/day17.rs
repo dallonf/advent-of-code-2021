@@ -12,9 +12,9 @@ lazy_static! {
             .unwrap();
 }
 
-pub fn part_one() -> Int {
+pub fn part_one() -> Option<Int> {
     let result = find_highest_trajectory(&PUZZLE_INPUT);
-    result.highest_y
+    result.map(|it| it.highest_y)
 }
 
 type Int = i32;
@@ -161,9 +161,7 @@ struct HighestTrajectoryResult {
     starting_velocity: Vec2,
 }
 
-/// Assumes that there is at least one valid trajectory.
-/// Will get caught in an infinite loop if not.
-fn find_highest_trajectory(target: &BoxArea2D) -> HighestTrajectoryResult {
+fn find_highest_trajectory(target: &BoxArea2D) -> Option<HighestTrajectoryResult> {
     let furthest_x = [target.bottom_left.x, target.top_right.x]
         .into_iter()
         .max_by_key(|x| x.abs())
@@ -174,9 +172,12 @@ fn find_highest_trajectory(target: &BoxArea2D) -> HighestTrajectoryResult {
         RangeInclusive::new(furthest_x, 0)
     };
 
-    let launch_for_y = |y_vel: Int| -> Option<HighestTrajectoryResult> {
-        let launches = possible_x_values.clone().filter_map(|x_yel| {
-            let velocity = Vec2::new(x_yel, y_vel);
+    let possible_y_values = RangeInclusive::new(0, 250);
+
+    possible_y_values
+        .flat_map(|y_vel| possible_x_values.clone().map(move |x_vel| (x_vel, y_vel)))
+        .filter_map(|(x_vel, y_vel)| {
+            let velocity = Vec2::new(x_vel, y_vel);
             match Probe::new(velocity).launch(target) {
                 LaunchResult::Hit { highest_y } => Some(HighestTrajectoryResult {
                     highest_y,
@@ -184,48 +185,8 @@ fn find_highest_trajectory(target: &BoxArea2D) -> HighestTrajectoryResult {
                 }),
                 LaunchResult::Missed => None,
             }
-        });
-        match launches.max_by_key(|it| it.highest_y) {
-            Some(result) => Some(result),
-            None => None,
-        }
-    };
-
-    let mut y_vel = target.bottom_left.y;
-    let mut best_result: Option<HighestTrajectoryResult> = None;
-
-    loop {
-        let result = launch_for_y(y_vel);
-        match result {
-            Some(new_result) => {
-                best_result = match best_result {
-                    Some(best_result) => {
-                        if best_result.highest_y < new_result.highest_y {
-                            Some(new_result)
-                        } else {
-                            Some(best_result)
-                        }
-                    }
-                    None => {
-                        if new_result.highest_y > target.top_right.y {
-                            Some(new_result)
-                        } else {
-                            // c'mon, you can do better than that
-                            None
-                        }
-                    }
-                };
-            }
-            None => {
-                if let Some(best_result) = best_result {
-                    // we've already found a result, and are now coming up dry
-                    return best_result;
-                }
-            }
-        }
-
-        y_vel += 1;
-    }
+        })
+        .max_by_key(|result| result.highest_y)
 }
 
 #[cfg(test)]
@@ -273,19 +234,19 @@ mod tests {
     fn test_highest_trajectory() {
         assert_eq!(
             find_highest_trajectory(&EXAMPLE_INPUT),
-            HighestTrajectoryResult {
+            Some(HighestTrajectoryResult {
                 highest_y: 45,
                 // I'd have expected a value of 6,9, but 7,9 also works and the requirements
                 // aren't specific about x
                 starting_velocity: Vec2::new(7, 9)
-            }
+            })
         );
     }
 
     #[test]
     fn part_one_answer() {
-        let result = part_one();
+        let result = part_one().unwrap();
         assert!(result > 2211);
-        assert_eq!(result, 0); // waiting to find actual answer
+        assert_eq!(result, 9180);
     }
 }
