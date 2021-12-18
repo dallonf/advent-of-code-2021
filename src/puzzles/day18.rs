@@ -17,6 +17,10 @@ pub fn part_one() -> u32 {
         .magnitude()
 }
 
+pub fn part_two() -> u32 {
+    find_largest_combination(&PUZZLE_INPUT).unwrap()
+}
+
 type Digit = u8;
 
 macro_rules! element_literal {
@@ -327,9 +331,38 @@ struct ExplodeResult {
     right: Option<Digit>,
 }
 
+fn find_largest_combination(numbers: &[SnailfishNumber]) -> Option<u32> {
+    let combinations: Box<[(&SnailfishNumber, &SnailfishNumber)]> =
+        numbers.into_iter().tuple_combinations().collect();
+
+    combinations
+        .into_par_iter()
+        .flat_map(|&(a, b)| [(a, b), (b, a)].into_par_iter())
+        .map(|(a, b)| a.add_and_reduce(b).magnitude())
+        .max()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    lazy_static! {
+        static ref EXAMPLE_INPUT: Box<[SnailfishNumber]> = [
+            "[[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]",
+            "[[[5,[2,8]],4],[5,[[9,9],0]]]",
+            "[6,[[[6,2],[5,6]],[[7,6],[4,7]]]]",
+            "[[[6,[0,7]],[0,9]],[4,[9,[9,0]]]]",
+            "[[[7,[6,4]],[3,[1,3]]],[[[5,5],1],9]]",
+            "[[6,[[7,3],[3,2]]],[[[3,8],[5,7]],4]]",
+            "[[[[5,4],[7,7]],8],[[8,3],8]]",
+            "[[9,3],[[9,9],[6,[4,9]]]]",
+            "[[2,[[7,7],7]],[[5,8],[[9,3],[0,2]]]]",
+            "[[[[5,2],5],[8,[3,7]]],[[5,[7,5]],[4,4]]]",
+        ]
+        .into_iter()
+        .map(|it| SnailfishNumber::from_str(it).unwrap())
+        .collect();
+    }
 
     #[test]
     fn parse_and_display() {
@@ -383,6 +416,8 @@ mod tests {
         let expected = snailfish_num!([[[[0, 7], 4], [[7, 8], [6, 0]]], [8, 1]]);
         assert_eq!(start.reduce(), Cow::Borrowed(&expected));
     }
+
+    #[test]
 
     fn test_sum() {
         assert_eq!(
@@ -487,23 +522,7 @@ mod tests {
 
     #[test]
     fn example_magnitude() {
-        let numbers = [
-            "[[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]",
-            "[[[5,[2,8]],4],[5,[[9,9],0]]]",
-            "[6,[[[6,2],[5,6]],[[7,6],[4,7]]]]",
-            "[[[6,[0,7]],[0,9]],[4,[9,[9,0]]]]",
-            "[[[7,[6,4]],[3,[1,3]]],[[[5,5],1],9]]",
-            "[[6,[[7,3],[3,2]]],[[[3,8],[5,7]],4]]",
-            "[[[[5,4],[7,7]],8],[[8,3],8]]",
-            "[[9,3],[[9,9],[6,[4,9]]]]",
-            "[[2,[[7,7],7]],[[5,8],[[9,3],[0,2]]]]",
-            "[[[[5,2],5],[8,[3,7]]],[[5,[7,5]],[4,4]]]",
-        ]
-        .into_iter()
-        .map(|it| SnailfishNumber::from_str(it).unwrap())
-        .collect_vec();
-
-        let sum = SnailfishNumber::sum(numbers.iter());
+        let sum = SnailfishNumber::sum(EXAMPLE_INPUT.iter());
         assert_eq!(
             sum,
             Some(snailfish_num!([
@@ -518,5 +537,17 @@ mod tests {
     fn part_one_answer() {
         let result = part_one();
         assert_eq!(result, 2907);
+    }
+
+    #[test]
+    fn test_find_largest_combination() {
+        let result = find_largest_combination(&EXAMPLE_INPUT);
+        assert_eq!(result, Some(3993))
+    }
+
+    #[test]
+    fn part_two_answer() {
+        let result = part_two();
+        assert_eq!(result, 4690);
     }
 }
