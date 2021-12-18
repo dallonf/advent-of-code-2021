@@ -89,10 +89,6 @@ impl SnailfishNumber {
         SnailfishNumber::new(self.left().clone(), new)
     }
 
-    fn as_pair(&self) -> (&Element, &Element) {
-        (self.left(), self.right())
-    }
-
     fn reduce(&self) -> Cow<SnailfishNumber> {
         let mut current = Cow::Borrowed(self);
         loop {
@@ -234,10 +230,6 @@ enum Element {
 }
 
 impl Element {
-    fn new_regular(number: Digit) -> Element {
-        Element::Regular(number)
-    }
-
     fn new_pair(left: Element, right: Element) -> Element {
         Element::Pair(SnailfishNumber::new(left, right))
     }
