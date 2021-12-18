@@ -1,29 +1,34 @@
 // Day 18: Snailfish
 use crate::prelude::*;
 use anyhow::{anyhow, bail, Error, Result};
-use std::fmt::{Debug, Write};
+use std::borrow::Cow;
+use std::fmt::Debug;
 use std::{fmt::Display, iter::Peekable, ops::Add, str::FromStr, sync::Arc};
 
 lazy_static! {
-    static ref PUZZLE_INPUT: Box<[&'static str]> = include_lines!("day00_input.txt").collect();
+    static ref PUZZLE_INPUT: Box<[SnailfishNumber]> = include_lines!("day18_input.txt")
+        .map(|it| it.parse().unwrap())
+        .collect();
 }
 
-pub fn part_one() -> String {
-    format!("Hello world! ({})", PUZZLE_INPUT.len())
+pub fn part_one() -> u32 {
+    SnailfishNumber::sum(PUZZLE_INPUT.iter())
+        .unwrap()
+        .magnitude()
 }
 
-type Int = u32;
+type Digit = u8;
 
 macro_rules! element_literal {
     ([$left:tt, $right:tt]) => {
-        Element::Pair(snailfish_number!([$left, $right]))
+        Element::Pair(snailfish_num!([$left, $right]))
     };
     ($num:tt) => {
         Element::Regular($num)
     };
 }
 
-macro_rules! snailfish_number {
+macro_rules! snailfish_num {
     ([$left:tt,$right:tt]) => {
         SnailfishNumber::new(element_literal!($left), element_literal!($right))
     };
@@ -57,6 +62,14 @@ impl SnailfishNumber {
         Ok(SnailfishNumber::new(left, right))
     }
 
+    fn sum<'a>(numbers: impl IntoIterator<Item = &'a SnailfishNumber>) -> Option<SnailfishNumber> {
+        numbers
+            .into_iter()
+            .map(|it| Cow::Borrowed(it))
+            .reduce(|prev, next| Cow::Owned(prev.add_and_reduce(&next)))
+            .map(|it| it.into_owned())
+    }
+
     fn left(&self) -> &Element {
         &self.0 .0
     }
@@ -64,12 +77,35 @@ impl SnailfishNumber {
         &self.0 .1
     }
 
+    fn update_left(&self, new: Element) -> SnailfishNumber {
+        SnailfishNumber::new(new, self.right().clone())
+    }
+
+    fn update_right(&self, new: Element) -> SnailfishNumber {
+        SnailfishNumber::new(self.left().clone(), new)
+    }
+
     fn as_pair(&self) -> (&Element, &Element) {
         (self.left(), self.right())
     }
 
-    fn reduce(&self) -> SnailfishNumber {
-        todo!()
+    fn reduce(&self) -> Cow<SnailfishNumber> {
+        let mut current = Cow::Borrowed(self);
+        loop {
+            if let Some(new) = current.try_explode(0) {
+                let new = if let Element::Pair(new) = new.new {
+                    new
+                } else {
+                    panic!("Somehow exploded so hard that the top pair became a single number!")
+                };
+                current = Cow::Owned(new)
+            } else if let Some(new) = current.try_split() {
+                current = Cow::Owned(new)
+            } else {
+                break;
+            }
+        }
+        current
     }
 
     fn try_explode(&self, depth: usize) -> Option<ExplodeResult> {
@@ -134,9 +170,27 @@ impl SnailfishNumber {
             None
         }
     }
+
+    fn try_split(&self) -> Option<SnailfishNumber> {
+        if let Some(new_left) = self.left().try_split() {
+            Some(self.update_left(new_left))
+        } else if let Some(new_right) = self.right().try_split() {
+            Some(self.update_right(new_right))
+        } else {
+            None
+        }
+    }
+
+    fn add_and_reduce(&self, other: &SnailfishNumber) -> SnailfishNumber {
+        (self + other).reduce().into_owned()
+    }
+
+    fn magnitude(&self) -> u32 {
+        self.left().magnitude() * 3 + self.right().magnitude() * 2
+    }
 }
 
-impl Add for SnailfishNumber {
+impl Add for &SnailfishNumber {
     type Output = SnailfishNumber;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -172,11 +226,11 @@ impl Debug for SnailfishNumber {
 #[derive(Debug, PartialEq, Eq, Clone)]
 enum Element {
     Pair(SnailfishNumber),
-    Regular(Int),
+    Regular(Digit),
 }
 
 impl Element {
-    fn new_regular(number: Int) -> Element {
+    fn new_regular(number: Digit) -> Element {
         Element::Regular(number)
     }
 
@@ -205,7 +259,21 @@ impl Element {
         }
     }
 
-    fn try_receive_explosion_left(&self, number: Int) -> Option<Element> {
+    fn try_split(&self) -> Option<Element> {
+        match self {
+            Element::Pair(snailfish_number) => {
+                snailfish_number.try_split().map(|it| Element::Pair(it))
+            }
+            &Element::Regular(number) if number >= 10 => {
+                let left = number / 2;
+                let right = number - left;
+                Some(element_literal!([left, right]))
+            }
+            Element::Regular(_) => None,
+        }
+    }
+
+    fn try_receive_explosion_left(&self, number: Digit) -> Option<Element> {
         match self {
             Element::Pair(pair) => {
                 if let Some(result) = pair.right().try_receive_explosion_left(number) {
@@ -220,7 +288,7 @@ impl Element {
         }
     }
 
-    fn try_receive_explosion_right(&self, number: Int) -> Option<Element> {
+    fn try_receive_explosion_right(&self, number: Digit) -> Option<Element> {
         match self {
             Element::Pair(pair) => {
                 if let Some(result) = pair.left().try_receive_explosion_right(number) {
@@ -232,6 +300,13 @@ impl Element {
                 }
             }
             Element::Regular(old_number) => Some(Element::Regular(old_number + number)),
+        }
+    }
+
+    fn magnitude(&self) -> u32 {
+        match self {
+            Element::Pair(snailfish_num) => snailfish_num.magnitude(),
+            Element::Regular(number) => *number as u32,
         }
     }
 }
@@ -248,8 +323,8 @@ impl Display for Element {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ExplodeResult {
     new: Element,
-    left: Option<Int>,
-    right: Option<Int>,
+    left: Option<Digit>,
+    right: Option<Digit>,
 }
 
 #[cfg(test)]
@@ -272,12 +347,6 @@ mod tests {
         assert_correct_parsing("[[[[1,3],[5,3]],[[1,3],[8,7]]],[[[4,9],[6,9]],[[8,2],[7,3]]]]");
     }
 
-    fn assert_reduce(input_str: &str, expected_str: &str) {
-        let expected: SnailfishNumber = expected_str.parse().unwrap();
-        let input: SnailfishNumber = input_str.parse().unwrap();
-        assert_eq!(input.reduce(), expected);
-    }
-
     #[test]
     fn test_single_explode() {
         fn assert_explode(input: SnailfishNumber, expected: SnailfishNumber) {
@@ -287,30 +356,167 @@ mod tests {
             )
         }
         assert_explode(
-            snailfish_number!([[[[[9, 8], 1], 2], 3], 4]),
-            snailfish_number!([[[[0, 9], 2], 3], 4]),
+            snailfish_num!([[[[[9, 8], 1], 2], 3], 4]),
+            snailfish_num!([[[[0, 9], 2], 3], 4]),
         );
         assert_explode(
-            snailfish_number!([7, [6, [5, [4, [3, 2]]]]]),
-            snailfish_number!([7, [6, [5, [7, 0]]]]),
+            snailfish_num!([7, [6, [5, [4, [3, 2]]]]]),
+            snailfish_num!([7, [6, [5, [7, 0]]]]),
         );
         assert_explode(
-            snailfish_number!([[6, [5, [4, [3, 2]]]], 1]),
-            snailfish_number!([[6, [5, [7, 0]]], 3]),
+            snailfish_num!([[6, [5, [4, [3, 2]]]], 1]),
+            snailfish_num!([[6, [5, [7, 0]]], 3]),
         );
         assert_explode(
-            snailfish_number!([[3, [2, [1, [7, 3]]]], [6, [5, [4, [3, 2]]]]]),
-            snailfish_number!([[3, [2, [8, 0]]], [9, [5, [4, [3, 2]]]]]),
+            snailfish_num!([[3, [2, [1, [7, 3]]]], [6, [5, [4, [3, 2]]]]]),
+            snailfish_num!([[3, [2, [8, 0]]], [9, [5, [4, [3, 2]]]]]),
         );
         assert_explode(
-            snailfish_number!([[3, [2, [8, 0]]], [9, [5, [4, [3, 2]]]]]),
-            snailfish_number!([[3, [2, [8, 0]]], [9, [5, [7, 0]]]]),
+            snailfish_num!([[3, [2, [8, 0]]], [9, [5, [4, [3, 2]]]]]),
+            snailfish_num!([[3, [2, [8, 0]]], [9, [5, [7, 0]]]]),
         );
+    }
+
+    #[test]
+    fn test_reduce() {
+        let start = snailfish_num!([[[[[4, 3], 4], 4], [7, [[8, 4], 9]]], [1, 1]]);
+        let expected = snailfish_num!([[[[0, 7], 4], [[7, 8], [6, 0]]], [8, 1]]);
+        assert_eq!(start.reduce(), Cow::Borrowed(&expected));
+    }
+
+    fn test_sum() {
+        assert_eq!(
+            SnailfishNumber::sum(
+                [
+                    snailfish_num!([1, 1]),
+                    snailfish_num!([2, 2]),
+                    snailfish_num!([3, 3]),
+                    snailfish_num!([4, 4]),
+                ]
+                .iter(),
+            ),
+            Some(snailfish_num!([[[[1, 1], [2, 2]], [3, 3]], [4, 4]])),
+        );
+        assert_eq!(
+            SnailfishNumber::sum(
+                [
+                    snailfish_num!([1, 1]),
+                    snailfish_num!([2, 2]),
+                    snailfish_num!([3, 3]),
+                    snailfish_num!([4, 4]),
+                    snailfish_num!([5, 5]),
+                ]
+                .iter(),
+            ),
+            Some(snailfish_num!([[[[3, 0], [5, 3]], [4, 4]], [5, 5]])),
+        );
+        assert_eq!(
+            SnailfishNumber::sum(
+                [
+                    snailfish_num!([1, 1]),
+                    snailfish_num!([2, 2]),
+                    snailfish_num!([3, 3]),
+                    snailfish_num!([4, 4]),
+                    snailfish_num!([5, 5]),
+                    snailfish_num!([6, 6]),
+                ]
+                .iter()
+            ),
+            Some(snailfish_num!([[[[5, 0], [7, 4]], [5, 5]], [6, 6]])),
+        );
+    }
+
+    #[test]
+    fn test_sum_large() {
+        assert_eq!(
+            SnailfishNumber::sum(
+                [
+                    snailfish_num!([[[0, [4, 5]], [0, 0]], [[[4, 5], [2, 6]], [9, 5]]]),
+                    snailfish_num!([7, [[[3, 7], [4, 3]], [[6, 3], [8, 8]]]]),
+                    snailfish_num!([[2, [[0, 8], [3, 4]]], [[[6, 7], 1], [7, [1, 6]]]]),
+                    snailfish_num!([
+                        [[[2, 4], 7], [6, [0, 5]]],
+                        [[[6, 8], [2, 8]], [[2, 1], [4, 5]]]
+                    ]),
+                    snailfish_num!([7, [5, [[3, 8], [1, 4]]]]),
+                    snailfish_num!([[2, [2, 2]], [8, [8, 1]]]),
+                    snailfish_num!([2, 9]),
+                    snailfish_num!([1, [[[9, 3], 9], [[9, 0], [0, 7]]]]),
+                    snailfish_num!([[[5, [7, 4]], 7], 1]),
+                    snailfish_num!([[[[4, 2], 2], 6], [8, 7]]),
+                ]
+                .iter()
+            ),
+            Some(snailfish_num!([
+                [[[8, 7], [7, 7]], [[8, 6], [7, 7]]],
+                [[[0, 7], [6, 6]], [8, 7]]
+            ])),
+        );
+    }
+
+    #[test]
+    fn test_magnitude() {
+        assert_eq!(snailfish_num!([9, 1]).magnitude(), 29);
+        assert_eq!(snailfish_num!([[9, 1], [1, 9]]).magnitude(), 129);
+        assert_eq!(snailfish_num!([[1, 2], [[3, 4], 5]]).magnitude(), 143);
+        assert_eq!(
+            snailfish_num!([[[[0, 7], 4], [[7, 8], [6, 0]]], [8, 1]]).magnitude(),
+            1384
+        );
+        assert_eq!(
+            snailfish_num!([[[[1, 1], [2, 2]], [3, 3]], [4, 4]]).magnitude(),
+            445
+        );
+        assert_eq!(
+            snailfish_num!([[[[3, 0], [5, 3]], [4, 4]], [5, 5]]).magnitude(),
+            791
+        );
+        assert_eq!(
+            snailfish_num!([[[[5, 0], [7, 4]], [5, 5]], [6, 6]]).magnitude(),
+            1137
+        );
+        assert_eq!(
+            snailfish_num!([
+                [[[8, 7], [7, 7]], [[8, 6], [7, 7]]],
+                [[[0, 7], [6, 6]], [8, 7]]
+            ])
+            .magnitude(),
+            3488
+        );
+    }
+
+    #[test]
+    fn example_magnitude() {
+        let numbers = [
+            "[[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]",
+            "[[[5,[2,8]],4],[5,[[9,9],0]]]",
+            "[6,[[[6,2],[5,6]],[[7,6],[4,7]]]]",
+            "[[[6,[0,7]],[0,9]],[4,[9,[9,0]]]]",
+            "[[[7,[6,4]],[3,[1,3]]],[[[5,5],1],9]]",
+            "[[6,[[7,3],[3,2]]],[[[3,8],[5,7]],4]]",
+            "[[[[5,4],[7,7]],8],[[8,3],8]]",
+            "[[9,3],[[9,9],[6,[4,9]]]]",
+            "[[2,[[7,7],7]],[[5,8],[[9,3],[0,2]]]]",
+            "[[[[5,2],5],[8,[3,7]]],[[5,[7,5]],[4,4]]]",
+        ]
+        .into_iter()
+        .map(|it| SnailfishNumber::from_str(it).unwrap())
+        .collect_vec();
+
+        let sum = SnailfishNumber::sum(numbers.iter());
+        assert_eq!(
+            sum,
+            Some(snailfish_num!([
+                [[[6, 6], [7, 6]], [[7, 7], [7, 0]]],
+                [[[7, 7], [7, 7]], [[7, 8], [9, 9]]]
+            ]))
+        );
+        assert_eq!(sum.unwrap().magnitude(), 4140);
     }
 
     #[test]
     fn part_one_answer() {
         let result = part_one();
-        assert_eq!(result, "Hello world! (3)");
+        assert_eq!(result, 2907);
     }
 }
