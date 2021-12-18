@@ -14,6 +14,21 @@ pub fn part_one() -> String {
 
 type Int = u32;
 
+macro_rules! element_literal {
+    ([$left:tt, $right:tt]) => {
+        Element::Pair(snailfish_number!([$left, $right]))
+    };
+    ($num:tt) => {
+        Element::Regular($num)
+    };
+}
+
+macro_rules! snailfish_number {
+    ([$left:tt,$right:tt]) => {
+        SnailfishNumber::new(element_literal!($left), element_literal!($right))
+    };
+}
+
 #[derive(Clone, PartialEq, Eq)]
 struct SnailfishNumber(Arc<(Element, Element)>);
 
@@ -39,7 +54,7 @@ impl SnailfishNumber {
         let right = Element::parse_from_stream(stream)?;
         expect_char!(stream, ']');
 
-        Ok(SnailfishNumber(Arc::new((left, right))))
+        Ok(SnailfishNumber::new(left, right))
     }
 
     fn left(&self) -> &Element {
@@ -69,7 +84,7 @@ impl SnailfishNumber {
 
         if let Some((left, right)) = pair_to_explode {
             Some(ExplodeResult {
-                new: Element::Regular(0),
+                new: element_literal!(0),
                 left: Some(*left),
                 right: Some(*right),
             })
@@ -125,10 +140,7 @@ impl Add for SnailfishNumber {
     type Output = SnailfishNumber;
 
     fn add(self, rhs: Self) -> Self::Output {
-        SnailfishNumber(Arc::new((
-            Element::Pair(self.clone()),
-            Element::Pair(rhs.clone()),
-        )))
+        SnailfishNumber::new(Element::Pair(self.clone()), Element::Pair(rhs.clone()))
     }
 }
 
@@ -164,6 +176,14 @@ enum Element {
 }
 
 impl Element {
+    fn new_regular(number: Int) -> Element {
+        Element::Regular(number)
+    }
+
+    fn new_pair(left: Element, right: Element) -> Element {
+        Element::Pair(SnailfishNumber::new(left, right))
+    }
+
     fn parse_from_stream(stream: &mut Peekable<impl Iterator<Item = char>>) -> Result<Element> {
         if stream.peek() == Some(&'[') {
             let snailfish_number = SnailfishNumber::parse_from_stream(stream)?;
@@ -189,15 +209,9 @@ impl Element {
         match self {
             Element::Pair(pair) => {
                 if let Some(result) = pair.right().try_receive_explosion_left(number) {
-                    Some(Element::Pair(SnailfishNumber::new(
-                        pair.left().clone(),
-                        result,
-                    )))
+                    Some(Element::new_pair(pair.left().clone(), result))
                 } else if let Some(result) = pair.left().try_receive_explosion_left(number) {
-                    Some(Element::Pair(SnailfishNumber::new(
-                        result,
-                        pair.right().clone(),
-                    )))
+                    Some(Element::new_pair(result, pair.right().clone()))
                 } else {
                     None
                 }
@@ -210,15 +224,9 @@ impl Element {
         match self {
             Element::Pair(pair) => {
                 if let Some(result) = pair.left().try_receive_explosion_right(number) {
-                    Some(Element::Pair(SnailfishNumber::new(
-                        result,
-                        pair.right().clone(),
-                    )))
+                    Some(Element::new_pair(result, pair.right().clone()))
                 } else if let Some(result) = pair.right().try_receive_explosion_right(number) {
-                    Some(Element::Pair(SnailfishNumber::new(
-                        pair.left().clone(),
-                        result,
-                    )))
+                    Some(Element::new_pair(pair.left().clone(), result))
                 } else {
                     None
                 }
@@ -272,21 +280,31 @@ mod tests {
 
     #[test]
     fn test_single_explode() {
-        fn assert_explode(input_str: &str, expected_str: &str) {
-            let expected: SnailfishNumber = expected_str.parse().unwrap();
-            let input: SnailfishNumber = input_str.parse().unwrap();
-            assert_eq!(input.try_explode(0).unwrap().new, Element::Pair(expected));
+        fn assert_explode(input: SnailfishNumber, expected: SnailfishNumber) {
+            assert_eq!(
+                input.try_explode(0).unwrap().new,
+                Element::Pair(expected.clone())
+            )
         }
-        assert_explode("[[[[[9,8],1],2],3],4]", "[[[[0,9],2],3],4]");
-        assert_explode("[7,[6,[5,[4,[3,2]]]]]", "[7,[6,[5,[7,0]]]]");
-        assert_explode("[[6,[5,[4,[3,2]]]],1]", "[[6,[5,[7,0]]],3]");
         assert_explode(
-            "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]",
-            "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]",
+            snailfish_number!([[[[[9, 8], 1], 2], 3], 4]),
+            snailfish_number!([[[[0, 9], 2], 3], 4]),
         );
         assert_explode(
-            "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]",
-            "[[3,[2,[8,0]]],[9,[5,[7,0]]]]",
+            snailfish_number!([7, [6, [5, [4, [3, 2]]]]]),
+            snailfish_number!([7, [6, [5, [7, 0]]]]),
+        );
+        assert_explode(
+            snailfish_number!([[6, [5, [4, [3, 2]]]], 1]),
+            snailfish_number!([[6, [5, [7, 0]]], 3]),
+        );
+        assert_explode(
+            snailfish_number!([[3, [2, [1, [7, 3]]]], [6, [5, [4, [3, 2]]]]]),
+            snailfish_number!([[3, [2, [8, 0]]], [9, [5, [4, [3, 2]]]]]),
+        );
+        assert_explode(
+            snailfish_number!([[3, [2, [8, 0]]], [9, [5, [4, [3, 2]]]]]),
+            snailfish_number!([[3, [2, [8, 0]]], [9, [5, [7, 0]]]]),
         );
     }
 
