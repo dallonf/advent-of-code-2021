@@ -1,7 +1,8 @@
 // Day 18: Snailfish
 use crate::prelude::*;
 use anyhow::{anyhow, bail, Error, Result};
-use std::{fmt::Display, iter::Peekable, str::FromStr, sync::Arc};
+use std::fmt::{Debug, Write};
+use std::{fmt::Display, iter::Peekable, ops::Add, str::FromStr, sync::Arc};
 
 lazy_static! {
     static ref PUZZLE_INPUT: Box<[&'static str]> = include_lines!("day00_input.txt").collect();
@@ -11,9 +12,16 @@ pub fn part_one() -> String {
     format!("Hello world! ({})", PUZZLE_INPUT.len())
 }
 
-struct SnailfishNumber(Element, Element);
+type Int = u32;
+
+#[derive(Clone, PartialEq, Eq)]
+struct SnailfishNumber(Arc<(Element, Element)>);
 
 impl SnailfishNumber {
+    fn new(left: Element, right: Element) -> SnailfishNumber {
+        SnailfishNumber(Arc::new((left, right)))
+    }
+
     fn parse_from_stream(
         stream: &mut Peekable<impl Iterator<Item = char>>,
     ) -> Result<SnailfishNumber> {
@@ -31,7 +39,96 @@ impl SnailfishNumber {
         let right = Element::parse_from_stream(stream)?;
         expect_char!(stream, ']');
 
-        Ok(SnailfishNumber(left, right))
+        Ok(SnailfishNumber(Arc::new((left, right))))
+    }
+
+    fn left(&self) -> &Element {
+        &self.0 .0
+    }
+    fn right(&self) -> &Element {
+        &self.0 .1
+    }
+
+    fn as_pair(&self) -> (&Element, &Element) {
+        (self.left(), self.right())
+    }
+
+    fn reduce(&self) -> SnailfishNumber {
+        todo!()
+    }
+
+    fn try_explode(&self, depth: usize) -> Option<ExplodeResult> {
+        let pair_to_explode = if depth >= 4 {
+            match (self.left(), self.right()) {
+                (Element::Regular(left), Element::Regular(right)) => Some((left, right)),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some((left, right)) = pair_to_explode {
+            Some(ExplodeResult {
+                new: Element::Regular(0),
+                left: Some(*left),
+                right: Some(*right),
+            })
+        } else if let Some(exploded_on_left) = self.left().try_explode(depth + 1) {
+            let new_right = if let Some(new_right) = exploded_on_left.right {
+                self.right().try_receive_explosion_right(new_right)
+            } else {
+                None
+            };
+            if let Some(new_right) = new_right {
+                let new_number = SnailfishNumber::new(exploded_on_left.new, new_right);
+                Some(ExplodeResult {
+                    new: Element::Pair(new_number),
+                    left: exploded_on_left.left,
+                    right: None,
+                })
+            } else {
+                let new_number = SnailfishNumber::new(exploded_on_left.new, self.right().clone());
+                Some(ExplodeResult {
+                    new: Element::Pair(new_number),
+                    left: exploded_on_left.left,
+                    right: exploded_on_left.right,
+                })
+            }
+        } else if let Some(exploded_on_right) = self.right().try_explode(depth + 1) {
+            let new_left = if let Some(new_left) = exploded_on_right.left {
+                self.left().try_receive_explosion_left(new_left)
+            } else {
+                None
+            };
+            if let Some(new_left) = new_left {
+                let new_number = SnailfishNumber::new(new_left, exploded_on_right.new);
+                Some(ExplodeResult {
+                    new: Element::Pair(new_number),
+                    left: None,
+                    right: exploded_on_right.right,
+                })
+            } else {
+                let new_number = SnailfishNumber::new(self.left().clone(), exploded_on_right.new);
+                Some(ExplodeResult {
+                    new: Element::Pair(new_number),
+                    left: exploded_on_right.left,
+                    right: exploded_on_right.right,
+                })
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl Add for SnailfishNumber {
+    type Output = SnailfishNumber;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        SnailfishNumber(Arc::new((
+            Element::Pair(self.clone()),
+            Element::Pair(rhs.clone()),
+        )))
     }
 }
 
@@ -50,20 +147,26 @@ impl FromStr for SnailfishNumber {
 
 impl Display for SnailfishNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{},{}]", self.0, self.1)
+        write!(f, "[{},{}]", self.left(), self.right())
     }
 }
 
+impl Debug for SnailfishNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.to_string().as_str())
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 enum Element {
-    Pair(Arc<SnailfishNumber>),
-    Regular(u32),
+    Pair(SnailfishNumber),
+    Regular(Int),
 }
 
 impl Element {
     fn parse_from_stream(stream: &mut Peekable<impl Iterator<Item = char>>) -> Result<Element> {
         if stream.peek() == Some(&'[') {
             let snailfish_number = SnailfishNumber::parse_from_stream(stream)?;
-            let snailfish_number = Arc::new(snailfish_number);
             Ok(Element::Pair(snailfish_number))
         } else {
             // assume only a single digit; numbers >=10 only exist during reduction
@@ -72,6 +175,55 @@ impl Element {
                 .ok_or(anyhow!("End of string while parsing a number"))?;
             let num = digit_str.to_string().parse()?;
             Ok(Element::Regular(num))
+        }
+    }
+
+    fn try_explode(&self, depth: usize) -> Option<ExplodeResult> {
+        match self {
+            Element::Pair(snailfish_number) => snailfish_number.try_explode(depth),
+            Element::Regular(_) => None,
+        }
+    }
+
+    fn try_receive_explosion_left(&self, number: Int) -> Option<Element> {
+        match self {
+            Element::Pair(pair) => {
+                if let Some(result) = pair.right().try_receive_explosion_left(number) {
+                    Some(Element::Pair(SnailfishNumber::new(
+                        pair.left().clone(),
+                        result,
+                    )))
+                } else if let Some(result) = pair.left().try_receive_explosion_left(number) {
+                    Some(Element::Pair(SnailfishNumber::new(
+                        result,
+                        pair.right().clone(),
+                    )))
+                } else {
+                    None
+                }
+            }
+            Element::Regular(old_number) => Some(Element::Regular(old_number + number)),
+        }
+    }
+
+    fn try_receive_explosion_right(&self, number: Int) -> Option<Element> {
+        match self {
+            Element::Pair(pair) => {
+                if let Some(result) = pair.left().try_receive_explosion_right(number) {
+                    Some(Element::Pair(SnailfishNumber::new(
+                        result,
+                        pair.right().clone(),
+                    )))
+                } else if let Some(result) = pair.right().try_receive_explosion_right(number) {
+                    Some(Element::Pair(SnailfishNumber::new(
+                        pair.left().clone(),
+                        result,
+                    )))
+                } else {
+                    None
+                }
+            }
+            Element::Regular(old_number) => Some(Element::Regular(old_number + number)),
         }
     }
 }
@@ -83,6 +235,13 @@ impl Display for Element {
             Element::Regular(num) => write!(f, "{}", num),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExplodeResult {
+    new: Element,
+    left: Option<Int>,
+    right: Option<Int>,
 }
 
 #[cfg(test)]
@@ -103,6 +262,32 @@ mod tests {
         assert_correct_parsing("[[[[1,2],[3,4]],[[5,6],[7,8]]],9]");
         assert_correct_parsing("[[[9,[3,8]],[[0,9],6]],[[[3,7],[4,9]],3]]");
         assert_correct_parsing("[[[[1,3],[5,3]],[[1,3],[8,7]]],[[[4,9],[6,9]],[[8,2],[7,3]]]]");
+    }
+
+    fn assert_reduce(input_str: &str, expected_str: &str) {
+        let expected: SnailfishNumber = expected_str.parse().unwrap();
+        let input: SnailfishNumber = input_str.parse().unwrap();
+        assert_eq!(input.reduce(), expected);
+    }
+
+    #[test]
+    fn test_single_explode() {
+        fn assert_explode(input_str: &str, expected_str: &str) {
+            let expected: SnailfishNumber = expected_str.parse().unwrap();
+            let input: SnailfishNumber = input_str.parse().unwrap();
+            assert_eq!(input.try_explode(0).unwrap().new, Element::Pair(expected));
+        }
+        assert_explode("[[[[[9,8],1],2],3],4]", "[[[[0,9],2],3],4]");
+        assert_explode("[7,[6,[5,[4,[3,2]]]]]", "[7,[6,[5,[7,0]]]]");
+        assert_explode("[[6,[5,[4,[3,2]]]],1]", "[[6,[5,[7,0]]],3]");
+        assert_explode(
+            "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]",
+            "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]",
+        );
+        assert_explode(
+            "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]",
+            "[[3,[2,[8,0]]],[9,[5,[7,0]]]]",
+        );
     }
 
     #[test]
